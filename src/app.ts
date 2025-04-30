@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import { fetchData } from "./cron/cron.service";
 import cron from "node-cron";
-// import { checkPostgresConnection } from "./database/database.service";
+import { checkPostgresConnection } from "./database/database.service";
 
 const app = express();
 const port: number = 3001;
@@ -21,7 +21,7 @@ cron.schedule("*/3 * * * *", async () => {
 
 app.listen(port, async () => {
   try {
-    // checkPostgresConnection();
+    checkPostgresConnection();
     console.log(`Server is running on http://localhost:${port}`);
   } catch (err) {
     console.error("Error during fetchData execution:", err);

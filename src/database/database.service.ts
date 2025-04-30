@@ -34,14 +34,14 @@ export const pgPool = new Pool({
   port: 5432,
 });
 
-// export const checkPostgresConnection = async () => {
-//   try {
-//     const client = await pgPool.connect();
-//     await client.query("SELECT 1"); // Simple query to check connection
-//     client.release();
-//     console.log("✅ Connected to PostgreSQL successfully!");
-//   } catch (error) {
-//     console.error("❌ Error connecting to PostgreSQL:", error);
-//     throw error;
-//   }
-// };
+export const checkPostgresConnection = async () => {
+  try {
+    const client = await pgPool.connect();
+    await client.query("SELECT 1"); // Simple query to check connection
+    client.release();
+    console.log("✅ Connected to PostgreSQL successfully!");
+  } catch (error) {
+    console.error("❌ Error connecting to PostgreSQL:", error);
+    throw error;
+  }
+};
