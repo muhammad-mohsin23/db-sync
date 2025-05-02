@@ -7,31 +7,28 @@ import { Pool } from "pg";
 export const mysqlConnection = async () => {
   try {
     const connection = await mysql.createConnection({
-      host: "rds-staging.getspruce.com",
-      // user: "srv-bookingeng",
-      // password: "kAM7^TrGiGGCGl2IoG9", // Replace with the actual password
-      user: "apartmentbutler",
-      password: "Click123$", // Replace with the actual password
-      database: "ebdb",
-      port: 3306,
-      connectTimeout: 10000, // Timeout in milliseconds (10 seconds)
+      host: process.env.MYSQL_HOST,
+      user: process.env.MYSQL_USER,
+      password: process.env.MYSQL_PASSWORD,
+      database: process.env.MYSQL_DATABASE,
+      port: Number(process.env.MYSQL_PORT),
+      connectTimeout: 10000,
     });
 
     console.log("Connected to MySQL successfully!");
     return connection;
   } catch (error) {
     console.error("Error connecting to MySQL:", error);
-    throw error; // Re-throw the error after logging it
+    throw error;
   }
 };
-
 // PostgreSQL connection
 export const pgPool = new Pool({
-  host: "spruce-db-prod.cluster-cloi88cqmfxn.us-east-1.rds.amazonaws.com",
-  user: "postgres",
-  password: "ElgUnf7cv465",
-  database: "spruce-live-pms",
-  port: 5432,
+  host: process.env.PG_HOST,
+  user: process.env.PG_USER,
+  password: process.env.PG_PASSWORD,
+  database: process.env.PG_DATABASE,
+  port: Number(process.env.PG_PORT),
 });
 
 export const checkPostgresConnection = async () => {
