@@ -222,3 +222,78 @@ WHERE account_id = $3 AND provider = 'PASSWORD'`,
     client.release();
   }
 }
+
+export async function insertCustomerEntry(item: any) {
+  const client = await pgPool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Step 1: Get the account ID based on legacy customer_id
+    const res = await client.query(
+      `
+      SELECT a.id as account_id, h.id as instruction_id
+      FROM account a
+      LEFT JOIN home_access_instruction h ON h.account_id = a.id
+      WHERE a.legacy_id = $1
+      `,
+      [item.customer_id]
+    );
+
+    const accountId = res.rows[0].account_id;
+
+    if (res.rows[0].instruction_id) {
+      await client.query("ROLLBACK");
+      console.log(
+        `Home access instruction already exists for account_id ${accountId}.`
+      );
+      return;
+    }
+
+    // Step 2: Insert the home access instruction entry
+    await client.query(
+      `INSERT INTO home_access_instruction (
+        entry, entry_code, details, notes, account_id, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        item.method,
+        item.code || null,
+        item.details || null,
+        item.additional_notes || null,
+        accountId,
+        new Date(),
+      ]
+    );
+
+    await client.query("COMMIT");
+    console.log(`✅ Entry instruction inserted for account_id: ${accountId}`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Error inserting entry instruction:", err);
+  } finally {
+    client.release();
+  }
+}
+
+export async function getAccountIdByLegacyId(legacyId: number) {
+  const client = await pgPool.connect();
+
+  try {
+    const res = await client.query(
+      `SELECT id FROM account WHERE legacy_id = $1`,
+      [legacyId]
+    );
+
+    if (res.rows.length === 0) {
+      console.log(`ℹ️ Account with legacy_id ${legacyId} not found.`);
+      return null;
+    }
+
+    return res.rows[0].id;
+  } catch (err) {
+    console.error("❌ Error fetching account by legacy ID:", err);
+    return null;
+  } finally {
+    client.release();
+  }
+}
