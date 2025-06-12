@@ -1,9 +1,21 @@
 import { mysqlConnection } from "../database/database.service";
 import {
+  insertBooking,
+  insertBookingActivity,
+  insertBookingAddOns,
+  insertBookingFeedback,
+  insertBookingServiceDetails,
+  updateBooking,
+  updateBookingAddOn,
+  updateBookingFeedback,
+  updateBookingServiceDetails,
+} from "../services/booking";
+import {
   deleteCustomerInAccount,
   insertCustomerToAccount,
   updateCustomerInAccount,
 } from "../services/customer";
+import { insertInvoice, insertInvoiceItem } from "../services/invoice";
 export async function fetchData() {
   const currentDate = new Date().setSeconds(0);
   try {
@@ -45,9 +57,20 @@ WHERE created_at >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:00') - INTERVAL 3 MINUTE`
 }
 const insertFunctionsByTablename: Record<string, Function> = {
   customers: insertCustomerToAccount,
+  bookings: insertBooking,
+  bookingaddons: insertBookingAddOns,
+  bookingfeedback: insertBookingFeedback,
+  bookingservicedetails: insertBookingServiceDetails,
+  bookingactivity: insertBookingActivity,
+  invoice: insertInvoice,
+  invoiceitems: insertInvoiceItem,
 };
 const updateFunctionsByTablename: Record<string, Function> = {
   customers: updateCustomerInAccount,
+  bookings: updateBooking,
+  bookingaddons: updateBookingAddOn,
+  bookingfeedback: updateBookingFeedback,
+  bookingservicedetails: updateBookingServiceDetails,
 };
 const deleteFunctionsByTablename: Record<string, Function> = {
   customers: deleteCustomerInAccount,

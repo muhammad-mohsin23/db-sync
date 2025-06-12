@@ -265,17 +265,16 @@ export async function updateBooking(item: any) {
 
     await client.query(
       `UPDATE booking SET
-        reference_number = $1,
-        account_id = $2,
-        property_id = $3,
-        service_id = $4,
-        date = $5,
-        payment_method_id = $6,
-        unit_id = $7,
-        updated_at = $8
+        account_id = $1,
+        property_id = $2,
+        service_id = $3,
+        date = $4,
+        payment_method_id = $5,
+        unit_id = $6,
+        updated_at = $7,
+        deleted_at = $8
       WHERE legacy_id = $9`,
       [
-        `BK-${item.Id}`,
         accountId,
         propertyId,
         serviceId,
@@ -283,6 +282,7 @@ export async function updateBooking(item: any) {
         item.PaymentTokenId ?? null,
         unitId,
         new Date(),
+        item.deleted_at,
         item.Id,
       ]
     );
