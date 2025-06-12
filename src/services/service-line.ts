@@ -21,11 +21,19 @@ export async function insertServiceLine(serviceLineData: any) {
       `INSERT INTO service_line (
         name, description, slug, legacy_id, updated_at
       ) VALUES ($1, $2, $3, $4, $5)`,
-      [serviceLineData.name, serviceLineData.name, createSlug(serviceLineData.name), serviceLineData.id, new Date()]
+      [
+        serviceLineData.name,
+        serviceLineData.name,
+        createSlug(serviceLineData.name),
+        serviceLineData.id,
+        new Date(),
+      ]
     );
 
     await client.query("COMMIT");
-    console.log(`✅ Service line "${serviceLineData.name}" inserted successfully.`);
+    console.log(
+      `✅ Service line "${serviceLineData.name}" inserted successfully.`
+    );
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("❌ Error inserting service line:", err);
@@ -198,5 +206,47 @@ export async function updateServiceLine(serviceData: any) {
     console.error(" Error updating service line:", err);
   } finally {
     client.release();
+  }
+}
+
+export async function getServiceLineIdFromOptionId(
+  mysqlConn: any,
+  optionId: number
+) {
+  try {
+    // Step 1: Get service_line_option_id from service_line_option_mapping
+    const [mappingRows]: any = await mysqlConn.execute(
+      `SELECT service_line_option_id FROM service_line_option_mapping WHERE option_id = ?`,
+      [optionId]
+    );
+
+    if (!mappingRows || mappingRows.length === 0) {
+      console.log(`❌ No mapping found for option_id ${optionId}`);
+      return null;
+    }
+
+    const serviceLineOptionId = mappingRows[0].service_line_option_id;
+
+    // Step 2: Get service_line_id from service_line_option
+    const [optionRows]: any = await mysqlConn.execute(
+      `SELECT service_line_id FROM service_line_option WHERE id = ?`,
+      [serviceLineOptionId]
+    );
+
+    if (!optionRows || optionRows.length === 0) {
+      console.log(
+        `❌ No service line option found for ID ${serviceLineOptionId}`
+      );
+      return null;
+    }
+
+    const serviceLineId = optionRows[0].service_line_id;
+
+    return {
+      serviceLineId,
+    };
+  } catch (err) {
+    console.error("⚠️ Error fetching service line ID:", err);
+    return null;
   }
 }

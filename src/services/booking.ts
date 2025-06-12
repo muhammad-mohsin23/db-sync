@@ -8,6 +8,7 @@ import {
 } from "../helpers/util.herlper";
 import { getAccountIdByLegacyId } from "./customer";
 import { getPropertyIdByLegacyId } from "./property";
+import { getServiceLineIdFromOptionId } from "./service-line";
 import { getUnitFromUnitResident } from "./unit";
 
 export async function insertBooking(item: any) {
@@ -29,13 +30,9 @@ export async function insertBooking(item: any) {
       return;
     }
 
-    const existingAccount = await client.query(
-      `SELECT id FROM account WHERE legacy_id = $1`,
-      [item.CustomerId]
-    );
     const accountId = await getAccountIdByLegacyId(item.CustomerId);
 
-    if (!existingAccount) {
+    if (!accountId) {
       await client.query("ROLLBACK");
       console.log(`Account with legacy_id ${item.CustomerId} not found.`);
       return;
@@ -89,7 +86,7 @@ export async function insertBooking(item: any) {
 
     const serviceId = serviceResult.rows[0].id;
 
-    const bookingDate = item.Start ?? item.bCreatedAt;
+    const bookingDate = item.Start ?? item.CreatedAt;
 
     const result = await client.query(
       `INSERT INTO booking (
@@ -117,12 +114,185 @@ export async function insertBooking(item: any) {
       ]
     );
 
+    const [scheduleRows]: any = await mysqlConn.execute(
+      `SELECT * FROM schedules WHERE id = ? AND DeletedAt IS NULL`,
+      [item?.ScheduleId]
+    );
+
+    if (!scheduleRows || scheduleRows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(`No schedule data found for id ${item?.ScheduleId}`);
+      return;
+    }
+
+    const legacyScheduleData = scheduleRows[0];
+
+    if (legacyScheduleData) {
+      const account = await client.query(
+        `SELECT id,account_type FROM account WHERE legacy_id = $1`,
+        [accountId]
+      );
+
+      if (account.rows.length === 0) {
+        await client.query("ROLLBACK");
+        console.log(`No account found with this accountId ${accountId}`);
+        return;
+      }
+
+      const customerAccounType = serviceResult.rows[0].account_type;
+      await client.query(
+        `INSERT INTO booking_event (
+      booking_id,
+      event_type,
+      timestamp,
+      created_for,
+      created_at,
+      updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          result.rows[0].id, // booking_id
+          legacyScheduleData.Type === "Repeat" ? "REPEAT" : "ONE_TIME",
+          legacyScheduleData?.Start || bookingDate,
+          customerAccounType,
+          new Date(), // created_at
+          new Date(), // updated_at
+        ]
+      );
+    }
+    await client.query(
+      `INSERT INTO booking_event (
+        booking_id,
+        event_type,
+        timestamp,
+        created_for,
+        body,
+        created_at,
+        updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        result.rows[0].id, // booking_id
+        "BOOKING_CREATED", // event_type
+        legacyScheduleData?.Start || bookingDate, // timestamp
+        "RESIDENT", // created_for (assuming default is RESIDENT)
+        JSON.stringify(legacyScheduleData), // body
+        new Date(), // created_at
+        new Date(), // updated_at
+      ]
+    );
+
     await client.query("COMMIT");
     console.log(`Booking inserted with ID: ${result.rows[0].id}`);
     return result.rows[0].id;
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error inserting booking:", err);
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateBooking(item: any) {
+  const client = await pgPool.connect();
+  const mysqlConn = await mysqlConnection();
+
+  try {
+    await client.query("BEGIN");
+
+    // Find existing booking by legacy_id
+    const existing = await client.query(
+      `SELECT id FROM booking WHERE legacy_id = $1`,
+      [item.Id]
+    );
+
+    if (existing.rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(`Booking with legacy_id ${item.Id} not found.`);
+      return;
+    }
+
+    const bookingId = existing.rows[0].id;
+
+    const accountId = await getAccountIdByLegacyId(item.CustomerId);
+    if (!accountId) {
+      await client.query("ROLLBACK");
+      console.log(`Account with legacy_id ${item.CustomerId} not found.`);
+      return;
+    }
+
+    const propertyId = await getPropertyIdByLegacyId(item.PropertyId);
+    if (!propertyId) {
+      await client.query("ROLLBACK");
+      console.log(`Property with legacy_id ${item.PropertyId} not found.`);
+      return;
+    }
+
+    const unitId = await getUnitFromUnitResident(item.UnitResidentId);
+    if (!unitId) {
+      await client.query("ROLLBACK");
+      console.log(`Unit with legacy_id ${item.UnitResidentId} not found.`);
+      return;
+    }
+
+    const [rows]: any = await mysqlConn.execute(
+      `SELECT service_line_option_id FROM service_line_option_mapping WHERE option_id = ?`,
+      [item?.OptionId]
+    );
+
+    if (!rows || rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(`No service_line_option_id for option_id ${item.OptionId}`);
+      return;
+    }
+
+    const legacyServiceId = rows[0].service_line_option_id;
+
+    const serviceResult = await client.query(
+      `SELECT id FROM service WHERE legacy_id = $1`,
+      [legacyServiceId]
+    );
+
+    if (serviceResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ Service not found in PostgreSQL for legacy_id ${legacyServiceId}`
+      );
+      return;
+    }
+
+    const serviceId = serviceResult.rows[0].id;
+
+    const bookingDate = item.Start ?? item.CreatedAt;
+
+    await client.query(
+      `UPDATE booking SET
+        reference_number = $1,
+        account_id = $2,
+        property_id = $3,
+        service_id = $4,
+        date = $5,
+        payment_method_id = $6,
+        unit_id = $7,
+        updated_at = $8
+      WHERE legacy_id = $9`,
+      [
+        `BK-${item.Id}`,
+        accountId,
+        propertyId,
+        serviceId,
+        bookingDate,
+        item.PaymentTokenId ?? null,
+        unitId,
+        new Date(),
+        item.Id,
+      ]
+    );
+
+    await client.query("COMMIT");
+    console.log(`✅ Booking with legacy_id ${item.Id} updated successfully.`);
+    return bookingId;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Error updating booking:", err);
   } finally {
     client.release();
   }
@@ -168,6 +338,57 @@ export async function insertBookingAddOns(item: any) {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error inserting booking add-on:", err);
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateBookingAddOn(item: any) {
+  const client = await pgPool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const bookingId = await getBookingIdByLegacyId(item.BookingId);
+    const addOnId = await getAddOnIdByLegacyId(item.AddOnId);
+
+    if (!bookingId || !addOnId) {
+      await client.query("ROLLBACK");
+      console.warn(
+        `Missing booking or add-on reference for legacy ID: ${item.Id}`
+      );
+      return;
+    }
+
+    // Check if the record exists
+    const { rows: existingRows } = await client.query(
+      `SELECT id FROM booking_addon WHERE legacy_id = $1`,
+      [item.Id]
+    );
+
+    if (existingRows.length === 0) {
+      await client.query("ROLLBACK");
+      console.warn(`No booking_addon found with legacy_id ${item.Id}`);
+      return;
+    }
+
+    await client.query(
+      `UPDATE booking_addon
+       SET booking_id = $1,
+           addon_id = $2,
+           updated_at = $3
+       WHERE legacy_id = $4`,
+      [bookingId, addOnId, new Date(), item.Id]
+    );
+
+    await client.query("COMMIT");
+    console.log(`Booking add-on (legacy_id: ${item.Id}) updated successfully.`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(
+      `Error updating booking add-on (legacy_id: ${item.Id}):`,
+      err
+    );
   } finally {
     client.release();
   }
@@ -523,6 +744,563 @@ export async function insertBookingServiceDetails(bookingData: any) {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error updating booking from kes:", error);
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateBookingServiceDetails(bookingData: any) {
+  const client = await pgPool.connect();
+  const mysqlConn = await mysqlConnection(); // Await the connection
+
+  try {
+    await client.query("BEGIN");
+
+    // Get the booking ID from legacy ID
+    const bookingId = await getBookingIdByLegacyId(bookingData.BookingId);
+    if (!bookingId) {
+      await client.query("ROLLBACK");
+      console.error(`Booking not found for legacy ID ${bookingData.BookingId}`);
+      return;
+    }
+
+    // Determine booking status
+    const status = mapLegacyStatusToBookingStatus(bookingData.Status);
+
+    // Update booking with status and updated_at
+    await client.query(
+      `UPDATE booking
+       SET status = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [status, bookingId]
+    );
+
+    if (bookingData.ClockedIn) {
+      await client.query(
+        `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          bookingId,
+          "CLOCK_IN",
+          bookingData.ClockedIn,
+          null,
+          null,
+          bookingData.CreatedAt || new Date(),
+        ]
+      );
+    }
+
+    if (bookingData.OnTheWay) {
+      await client.query(
+        `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          bookingId,
+          "ON_THE_WAY",
+          bookingData.OnTheWay,
+          null,
+          null,
+          bookingData.CreatedAt || new Date(),
+        ]
+      );
+    }
+
+    if (bookingData.ClockedOut) {
+      await client.query(
+        `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          bookingId,
+          "COMPLETED",
+          bookingData.ClockedOut,
+          null,
+          null,
+          bookingData.CreatedAt || new Date(),
+        ]
+      );
+    }
+    // Check if dispatch needs to be updated or created
+    // if (bookingData.ServiceProviderManagerId) {
+    //   // Get company ID from manager's legacy ID
+    //   const companyRes = await client.query(
+    //     `SELECT company_id FROM account WHERE legacy_id = $1 AND account_type = 'SERVICE_PROVIDER'`,
+    //     [bookingData.ServiceProviderManagerId]
+    //   );
+    //   const companyId = companyRes.rows?.[0]?.company_id;
+
+    //   if (companyId) {
+    //     // Check if dispatch record already exists
+    //     const dispatchCheck = await client.query(
+    //       `SELECT id FROM dispatch WHERE booking_id = $1`,
+    //       [bookingId]
+    //     );
+
+    //     const dispatchDate = bookingData.OnTheWay || bookingData.CreatedAt;
+
+    //     if (dispatchCheck.rows.length > 0) {
+    //       // Update existing dispatch
+    //       const dispatchId = dispatchCheck.rows[0].id;
+    //       await client.query(
+    //         `UPDATE dispatch
+    //          SET company_id = $1,
+    //              date = $2,
+    //              updated_at = NOW()
+    //          WHERE id = $3`,
+    //         [companyId, dispatchDate, dispatchId]
+    //       );
+
+    //       // Handle dispatch_pro update/insert
+    //       if (bookingData.ServiceProviderRunnerId) {
+    //         // Get pro account ID
+    //         const proAccountRes = await client.query(
+    //           `SELECT id FROM account WHERE legacy_id = $1 AND account_type = 'PRO' AND company_id = $2`,
+    //           [bookingData.ServiceProviderRunnerId, companyId]
+    //         );
+    //         const proAccountId = proAccountRes.rows?.[0]?.id;
+
+    //         if (proAccountId) {
+    //           // Check if dispatch_pro exists
+    //           const dispatchProCheck = await client.query(
+    //             `SELECT id FROM dispatch_pro WHERE dispatch_id = $1`,
+    //             [dispatchId]
+    //           );
+
+    //           if (dispatchProCheck.rows.length > 0) {
+    //             // Update existing dispatch_pro
+    //             await client.query(
+    //               `UPDATE dispatch_pro
+    //                SET account_id = $1,
+    //                    updated_at = NOW()
+    //                WHERE dispatch_id = $2`,
+    //               [proAccountId, dispatchId]
+    //             );
+    //           } else {
+    //             // Insert new dispatch_pro
+    //             await client.query(
+    //               `INSERT INTO dispatch_pro (dispatch_id, account_id, updated_at)
+    //                VALUES ($1, $2, NOW())`,
+    //               [dispatchId, proAccountId]
+    //             );
+    //           }
+    //         }
+    //       }
+    //     } else {
+    //       // Create new dispatch record
+    //       const dispatchInsertResult = await client.query(
+    //         `INSERT INTO dispatch (company_id, booking_id, date, updated_at)
+    //          VALUES ($1, $2, $3, NOW()) RETURNING id`,
+    //         [companyId, bookingId, dispatchDate]
+    //       );
+
+    //       const dispatchId = dispatchInsertResult.rows[0].id;
+
+    //       // Insert dispatch_pro if runner exists
+    //       if (bookingData.ServiceProviderRunnerId) {
+    //         const proAccountRes = await client.query(
+    //           `SELECT id FROM account WHERE legacy_id = $1 AND account_type = 'PRO' AND company_id = $2`,
+    //           [bookingData.ServiceProviderRunnerId, companyId]
+    //         );
+    //         const proAccountId = proAccountRes.rows?.[0]?.id;
+
+    //         if (proAccountId) {
+    //           await client.query(
+    //             `INSERT INTO dispatch_pro (dispatch_id, account_id, updated_at)
+    //              VALUES ($1, $2, NOW())`,
+    //             [dispatchId, proAccountId]
+    //           );
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
+
+    if (bookingData.ServiceProviderCompanyId) {
+      // Step 1: Get management company ID from legacy ID
+      const managementCompanyRes = await client.query(
+        `SELECT id FROM service_provider_management_companies WHERE legacy_id = $1`,
+        [bookingData.ServiceProviderCompanyId]
+      );
+      const managementCompanyId = managementCompanyRes.rows?.[0]?.id;
+
+      // Step 2: Get company ID under management company
+      let companyId: string | undefined;
+      if (managementCompanyId) {
+        const companyRes = await client.query(
+          `SELECT id FROM company WHERE service_provider_management_company_id = $1 AND type = 'SERVICE_PROVIDER'`,
+          [managementCompanyId]
+        );
+        companyId = companyRes.rows?.[0]?.id;
+      }
+
+      if (companyId) {
+        // Step 3: Check for existing dispatch
+        const dispatchRes = await client.query(
+          `SELECT id FROM dispatch WHERE company_id = $1 AND booking_id = $2`,
+          [companyId, bookingId]
+        );
+
+        const dispatchDate = bookingData.Start || bookingData.bCreatedAt;
+        const createdAt =
+          !bookingData.CreatedAt ||
+          bookingData.CreatedAt === "0000-00-00 00:00:00"
+            ? new Date()
+            : new Date(bookingData.CreatedAt);
+
+        let dispatchId: string;
+        if (dispatchRes.rows.length > 0) {
+          dispatchId = dispatchRes.rows[0].id;
+        } else {
+          const insertDispatchRes = await client.query(
+            `INSERT INTO dispatch (company_id, booking_id, date, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, NOW())
+             RETURNING id`,
+            [companyId, bookingId, dispatchDate, createdAt]
+          );
+          dispatchId = insertDispatchRes.rows[0].id;
+        }
+
+        // Step 4: Upsert dispatch_pro if runner exists
+        if (bookingData.ServiceProviderRunnerId) {
+          // Step 4.1: Fetch userId from MySQL using ServiceProviderRunnerId
+          const [rows]: any = await mysqlConn.query(
+            `SELECT userId FROM service_provider_runner WHERE id = ?`,
+            [bookingData.ServiceProviderRunnerId]
+          );
+          const runnerUserId = rows?.[0]?.userId;
+
+          if (runnerUserId) {
+            // Step 4.2: Use runnerUserId as legacy_id to find PRO account in PostgreSQL
+            const proAccountRes = await client.query(
+              `SELECT id FROM account WHERE account_type = 'PRO' AND legacy_id = $1`,
+              [runnerUserId]
+            );
+            const proAccountId = proAccountRes.rows?.[0]?.id;
+            if (proAccountId) {
+              await client.query(
+                `INSERT INTO dispatch_pro (dispatch_id, account_id, created_at, updated_at)
+               VALUES ($1, $2, $3, NOW())
+               ON CONFLICT (dispatch_id, account_id)
+               DO UPDATE SET updated_at = NOW()`,
+                [dispatchId, proAccountId, createdAt]
+              );
+            }
+          }
+        }
+      }
+    }
+
+    await client.query("COMMIT");
+    console.log(
+      `Booking ID ${bookingId} service details updated successfully.`
+    );
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error updating booking service details:", error);
+  } finally {
+    client.release();
+  }
+}
+
+export async function insertBookingTimeWindow(timeWindowData: any) {
+  const client = await pgPool.connect();
+  const mysqlConn = await mysqlConnection(); // Await the connection
+
+  try {
+    await client.query("BEGIN");
+
+    const serviceLineResult = await getServiceLineIdFromOptionId(
+      mysqlConn,
+      timeWindowData.OptionId
+    );
+
+    if (!serviceLineResult) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ Could not resolve service line data for option_id ${timeWindowData.OptionId}`
+      );
+      return;
+    }
+
+    const { serviceLineId } = serviceLineResult;
+
+    const pgServiceLineResult = await client.query(
+      `SELECT id FROM service_line WHERE legacy_id = $1`,
+      [serviceLineId]
+    );
+
+    if (pgServiceLineResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ No PostgreSQL service_line found for legacy_id ${serviceLineId}`
+      );
+      return;
+    }
+
+    const pgServiceLineId = pgServiceLineResult.rows[0].id;
+
+    // Insert into PostgreSQL time_window table
+    const result = await client.query(
+      `INSERT INTO time_window (
+        legacy_id,
+        name,
+        start_time,
+        end_time,
+        service_line_id
+        created_at,
+        updated_at,
+        deleted_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id`,
+      [
+        timeWindowData.Id,
+        timeWindowData.DayOfWeek,
+        timeWindowData.StartTime,
+        timeWindowData.EndTime,
+        pgServiceLineId,
+        timeWindowData.CreatedAt,
+        timeWindowData.UpdatedAt,
+        timeWindowData.DeletedAt || null,
+      ]
+    );
+
+    await client.query("COMMIT");
+    console.log(`✅ Time window inserted with ID: ${result.rows[0].id}`);
+    return;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Error inserting time window:", err);
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateBookingTimeWindow(timeWindowData: any) {
+  const client = await pgPool.connect();
+  const mysqlConn = await mysqlConnection(); // Await the connection
+
+  try {
+    await client.query("BEGIN");
+
+    const serviceLineResult = await getServiceLineIdFromOptionId(
+      mysqlConn,
+      timeWindowData.OptionId
+    );
+
+    if (!serviceLineResult) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ Could not resolve service line data for option_id ${timeWindowData.OptionId}`
+      );
+      return;
+    }
+
+    const { serviceLineId } = serviceLineResult;
+
+    const pgServiceLineResult = await client.query(
+      `SELECT id FROM service_line WHERE legacy_id = $1`,
+      [serviceLineId]
+    );
+
+    if (pgServiceLineResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ No PostgreSQL service_line found for legacy_id ${serviceLineId}`
+      );
+      return;
+    }
+
+    const pgServiceLineId = pgServiceLineResult.rows[0].id;
+
+    // Update the time_window in PostgreSQL
+    await client.query(
+      `UPDATE time_window
+       SET name = $1,
+           start_time = $2,
+           end_time = $3,
+           service_line_id = $4,
+           updated_at = NOW()
+           deleted_at = $5
+       WHERE legacy_id = $5`,
+      [
+        timeWindowData.DayOfWeek,
+        timeWindowData.StartTime,
+        timeWindowData.EndTime,
+        pgServiceLineId,
+        timeWindowData.Id,
+        timeWindowData.deleted_at ?? null,
+      ]
+    );
+
+    await client.query("COMMIT");
+    console.log(`✅ Time window with legacy_id ${timeWindowData.Id} updated.`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Error updating time window:", err);
+  } finally {
+    client.release();
+  }
+}
+
+export async function insertOneTimeScheduleWindow(scheduleData: any) {
+  const client = await pgPool.connect();
+  const mysqlConn = await mysqlConnection();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1. Fetch one-time schedule data from MySQL (with deleted_at check)
+    const [oneTimeRows]: any = await mysqlConn.execute(
+      `SELECT * FROM onetimeschedules WHERE id = ? AND DeletedAt IS NULL`,
+      [scheduleData?.OneTimeScheduleId]
+    );
+
+    if (!oneTimeRows || oneTimeRows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ No one-time schedule found with id ${scheduleData?.OneTimeScheduleId}`
+      );
+      return;
+    }
+
+    const oneTimeSchedule = oneTimeRows[0];
+
+    // 2. Get the booking_id from the one-time schedule
+    const bookingId = await getBookingIdByLegacyId(oneTimeSchedule.BookingId);
+
+    if (!bookingId) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ Booking not found for legacy_id ${oneTimeSchedule.BookingId}`
+      );
+      return;
+    }
+
+    // 3. Get the assigned_time_window_id from time_window using legacy_id
+    const timeWindowResult = await client.query(
+      `SELECT id FROM time_window WHERE legacy_id = $1 AND deleted_at IS NULL`,
+      [scheduleData?.BookingWindowId]
+    );
+
+    if (timeWindowResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ No time_window found with legacy_id ${scheduleData?.BookingWindowId}`
+      );
+      return;
+    }
+
+    const timeWindowId = timeWindowResult.rows[0].id;
+
+    // 4. Insert into booking_event
+    await client.query(
+      `UPDATE booking_event
+       SET assigned_time_window_id = $1,
+           updated_at = $2
+       WHERE booking_id = $3
+         AND deleted_at is NULL`,
+      [
+        timeWindowId, // $1
+        new Date(), // $2
+        bookingId, // $3
+      ]
+    );
+
+    await client.query("COMMIT");
+    console.log(`✅ One-time schedule inserted for booking ID ${bookingId}`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Error inserting one-time schedule:", err);
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateOneTimeScheduleWindow(scheduleData: any) {
+  const client = await pgPool.connect();
+  const mysqlConn = await mysqlConnection();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1. Fetch one-time schedule data from MySQL (with deleted_at check)
+    const [oneTimeRows]: any = await mysqlConn.execute(
+      `SELECT * FROM onetimeschedules WHERE id = ? AND DeletedAt IS NULL`,
+      [scheduleData?.OneTimeScheduleId]
+    );
+
+    if (!oneTimeRows || oneTimeRows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ No one-time schedule found with id ${scheduleData?.OneTimeScheduleId}`
+      );
+      return;
+    }
+
+    const oneTimeSchedule = oneTimeRows[0];
+
+    // 2. Get the booking_id from the one-time schedule
+    const bookingId = await getBookingIdByLegacyId(oneTimeSchedule.BookingId);
+
+    if (!bookingId) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ Booking not found for legacy_id ${oneTimeSchedule.BookingId}`
+      );
+      return;
+    }
+
+    // 3. Get the assigned_time_window_id from time_window using legacy_id
+    const timeWindowResult = await client.query(
+      `SELECT id FROM time_window WHERE legacy_id = $1 AND deleted_at IS NULL`,
+      [scheduleData?.BookingWindowId]
+    );
+
+    if (timeWindowResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ No time_window found with legacy_id ${scheduleData?.BookingWindowId}`
+      );
+      return;
+    }
+
+    const timeWindowId = timeWindowResult.rows[0].id;
+
+    // 4. Check if a booking_event exists for this booking_id and event_type ONE_TIME_SCHEDULE
+    const eventCheck = await client.query(
+      `SELECT id FROM booking_event
+       WHERE booking_id = $1
+         AND deleted_at IS NULL`,
+      [bookingId]
+    );
+
+    if (eventCheck.rows.length === 0) {
+      await client.query("ROLLBACK");
+      console.log(
+        `❌ No booking_event found for booking_id ${bookingId} with event_type 'ONE_TIME_SCHEDULE'`
+      );
+      return;
+    }
+
+    // 5. Perform the update
+    await client.query(
+      `UPDATE booking_event
+       SET assigned_time_window_id = $1,
+           updated_at = $2
+       WHERE booking_id = $3
+         AND deleted_at IS NULL`,
+      [
+        timeWindowId, // $1
+        new Date(), // $2
+        bookingId, // $3
+      ]
+    );
+
+    await client.query("COMMIT");
+    console.log(`✅ One-time schedule UPDATED for booking ID ${bookingId}`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ Error updating one-time schedule:", err);
   } finally {
     client.release();
   }

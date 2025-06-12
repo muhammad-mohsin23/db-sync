@@ -168,7 +168,7 @@ export async function getUnitFromUnitResident(unitResidentId: number) {
   try {
     // Step 1: Get unit_id from MySQL
     const [mysqlRows]: any[] = await mysqlConn.execute(
-      `SELECT UnitId FROM unitResident WHERE id = ?`,
+      `SELECT UnitId FROM unitresident WHERE id = ?`,
       [unitResidentId]
     );
 
