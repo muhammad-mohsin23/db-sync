@@ -98,3 +98,24 @@ export function mapLegacyStatusToBookingStatus(status: string): BookingStatus {
 
   return bookingStatus ?? BookingStatus.InProgress;
 }
+
+export function classifyTimeRange(
+  startTimeStr: string,
+  endTimeStr: string
+): string {
+  const start = new Date(startTimeStr);
+  const end = new Date(endTimeStr);
+
+  const startHour = start.getHours();
+  const endHour = end.getHours();
+
+  const isMorning = startHour >= 9 && endHour <= 13;
+  const isAfternoon = startHour >= 13 && endHour <= 17;
+  const isEvening = startHour >= 16 && endHour <= 18;
+
+  if (isMorning && !isAfternoon && !isEvening) return "Morning";
+  if (isAfternoon && !isMorning && !isEvening) return "Afternoon";
+  if (isEvening && !isMorning && !isAfternoon) return "Evening";
+
+  return "Anytime"; // Covers overlaps or full-day ranges like 9–17
+}

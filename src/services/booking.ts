@@ -1,5 +1,6 @@
 import { mysqlConnection, pgPool } from "../database/database.service";
 import {
+  classifyTimeRange,
   expandBookingRange,
   getTotalDaysFromRecurrence,
   mapEventNameToBookingStatus,
@@ -11,9 +12,8 @@ import { getPropertyIdByLegacyId } from "./property";
 import { getServiceLineIdFromOptionId } from "./service-line";
 import { getUnitFromUnitResident } from "./unit";
 
-export async function insertBooking(item: any) {
+export async function insertBooking(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
-  const mysqlConn = await mysqlConnection();
 
   try {
     await client.query("BEGIN");
@@ -88,31 +88,39 @@ export async function insertBooking(item: any) {
 
     const bookingDate = item.Start ?? item.CreatedAt;
 
-    const result = await client.query(
-      `INSERT INTO booking (
-          reference_number,
-          account_id,
-          property_id,
-          service_id,
-          date,
-          payment_method_id,
-          unit_id,
-          legacy_id,
-          updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id`,
-      [
-        `BK-${item.Id}`,
-        accountId,
-        propertyId,
-        serviceId,
-        bookingDate,
-        item.PaymentTokenId ?? null,
-        unitId,
-        item.Id,
-        new Date(),
-      ]
-    );
+    // const result = await client.query(
+    //   `INSERT INTO booking (
+    //       reference_number,
+    //       account_id,
+    //       property_id,
+    //       service_id,
+    //       date,
+    //       payment_method_id,
+    //       unit_id,
+    //       legacy_id,
+    //       updated_at
+    //     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    //     RETURNING id`,
+    //   [
+    //     `BK-${item.Id}`,
+    //     accountId,
+    //     propertyId,
+    //     serviceId,
+    //     bookingDate,
+    //     item.PaymentTokenId ?? null,
+    //     unitId,
+    //     item.Id,
+    //     new Date(),
+    //   ]
+    // );
+    console.log("Booking Insertion Data:", {
+      bookingDate,
+      accountId,
+      propertyId,
+      serviceId,
+      unitId,
+      item,
+    });
 
     const [scheduleRows]: any = await mysqlConn.execute(
       `SELECT * FROM schedules WHERE id = ? AND DeletedAt IS NULL`,
@@ -140,49 +148,37 @@ export async function insertBooking(item: any) {
       }
 
       const customerAccounType = serviceResult.rows[0].account_type;
-      await client.query(
-        `INSERT INTO booking_event (
-      booking_id,
-      event_type,
-      timestamp,
-      created_for,
-      created_at,
-      updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          result.rows[0].id, // booking_id
-          legacyScheduleData.Type === "Repeat" ? "REPEAT" : "ONE_TIME",
-          legacyScheduleData?.Start || bookingDate,
-          customerAccounType,
-          new Date(), // created_at
-          new Date(), // updated_at
-        ]
-      );
+      console.log("Booking Event insertion Data:", {
+        // bookingId: result.rows[0].id,
+        eventType: legacyScheduleData.Type === "Repeat" ? "REPEAT" : "ONE_TIME",
+        timestamp: legacyScheduleData?.Start || bookingDate,
+        createdFor: customerAccounType,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      //   await client.query(
+      //     `INSERT INTO booking_event (
+      //   booking_id,
+      //   event_type,
+      //   timestamp,
+      //   created_for,
+      //   created_at,
+      //   updated_at
+      // ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      //     [
+      //       result.rows[0].id, // booking_id
+      //       legacyScheduleData.Type === "Repeat" ? "REPEAT" : "ONE_TIME",
+      //       legacyScheduleData?.Start || bookingDate,
+      //       customerAccounType,
+      //       new Date(), // created_at
+      //       new Date(), // updated_at
+      //     ]
+      //   );
     }
-    await client.query(
-      `INSERT INTO booking_event (
-        booking_id,
-        event_type,
-        timestamp,
-        created_for,
-        body,
-        created_at,
-        updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        result.rows[0].id, // booking_id
-        "BOOKING_CREATED", // event_type
-        legacyScheduleData?.Start || bookingDate, // timestamp
-        "RESIDENT", // created_for (assuming default is RESIDENT)
-        JSON.stringify(legacyScheduleData), // body
-        new Date(), // created_at
-        new Date(), // updated_at
-      ]
-    );
 
     await client.query("COMMIT");
-    console.log(`Booking inserted with ID: ${result.rows[0].id}`);
-    return result.rows[0].id;
+    // console.log(`Booking inserted with ID: ${result.rows[0].id}`);
+    return;
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error inserting booking:", err);
@@ -191,9 +187,8 @@ export async function insertBooking(item: any) {
   }
 }
 
-export async function updateBooking(item: any) {
+export async function updateBooking(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
-  const mysqlConn = await mysqlConnection();
 
   try {
     await client.query("BEGIN");
@@ -271,9 +266,10 @@ export async function updateBooking(item: any) {
         date = $4,
         payment_method_id = $5,
         unit_id = $6,
-        updated_at = $7,
-        deleted_at = $8
-      WHERE legacy_id = $9`,
+        notes=$7,
+        updated_at = $8,
+        deleted_at = $9
+      WHERE legacy_id = $10`,
       [
         accountId,
         propertyId,
@@ -281,11 +277,38 @@ export async function updateBooking(item: any) {
         bookingDate,
         item.PaymentTokenId ?? null,
         unitId,
-        new Date(),
+        item.Notes ?? null,
+        item.updateAt ?? new Date(),
         item.deleted_at,
         item.Id,
       ]
     );
+
+    if (item.Start && item.End) {
+      // Assuming time_window has a booking_id reference
+      const twResult = await client.query(
+        `SELECT time_window_id FROM booking WHERE id = $1`,
+        [bookingId]
+      );
+
+      if (twResult.rows.length > 0) {
+        const timeWindowId = twResult.rows[0].time_window_id;
+
+        const name = classifyTimeRange(item.Start, item.End);
+
+        await client.query(
+          `UPDATE time_window SET
+            start_time = $1,
+            end_time = $2,
+            name=$3,
+            updated_at = $4
+          WHERE id = $5`,
+          [item.Start, item.End, name, new Date(), timeWindowId]
+        );
+
+        console.log(`🕒 TimeWindow for booking ${item.Id} updated.`);
+      }
+    }
 
     await client.query("COMMIT");
     console.log(`✅ Booking with legacy_id ${item.Id} updated successfully.`);
@@ -749,9 +772,11 @@ export async function insertBookingServiceDetails(bookingData: any) {
   }
 }
 
-export async function updateBookingServiceDetails(bookingData: any) {
+export async function updateBookingServiceDetails(
+  bookingData: any,
+  mysqlConn: any
+) {
   const client = await pgPool.connect();
-  const mysqlConn = await mysqlConnection(); // Await the connection
 
   try {
     await client.query("BEGIN");
@@ -771,9 +796,9 @@ export async function updateBookingServiceDetails(bookingData: any) {
     await client.query(
       `UPDATE booking
        SET status = $1,
-           updated_at = NOW()
-       WHERE id = $2`,
-      [status, bookingId]
+           updated_at =$2
+       WHERE id = $3`,
+      [status, bookingData.UpdatedAt ?? new Date(), bookingId]
     );
 
     if (bookingData.ClockedIn) {
@@ -792,34 +817,70 @@ export async function updateBookingServiceDetails(bookingData: any) {
     }
 
     if (bookingData.OnTheWay) {
-      await client.query(
-        `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          bookingId,
-          "ON_THE_WAY",
-          bookingData.OnTheWay,
-          null,
-          null,
-          bookingData.CreatedAt || new Date(),
-        ]
+      const existing = await client.query(
+        `SELECT id FROM status_history
+         WHERE booking_id = $1 AND status = 'ON_THE_WAY'
+         LIMIT 1`,
+        [bookingId]
       );
+
+      const createdAt = bookingData.CreatedAt || new Date();
+
+      if (existing.rows.length > 0) {
+        await client.query(
+          `UPDATE status_history
+           SET time = $1,
+               platform = $2,
+               message = $3,
+               created_at = $4
+           WHERE id = $5`,
+          [bookingData.OnTheWay, null, null, createdAt, existing.rows[0].id]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [bookingId, "ON_THE_WAY", bookingData.OnTheWay, null, null, createdAt]
+        );
+      }
     }
 
     if (bookingData.ClockedOut) {
-      await client.query(
-        `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          bookingId,
-          "COMPLETED",
-          bookingData.ClockedOut,
-          null,
-          null,
-          bookingData.CreatedAt || new Date(),
-        ]
+      const existing = await client.query(
+        `SELECT id FROM status_history
+         WHERE booking_id = $1 AND status = 'COMPLETED'
+         LIMIT 1`,
+        [bookingId]
       );
+
+      const createdAt = bookingData.CreatedAt || new Date();
+
+      if (existing.rows.length > 0) {
+        await client.query(
+          `UPDATE status_history
+           SET time = $1,
+               platform = $2,
+               message = $3,
+               created_at = $4
+           WHERE id = $5`,
+          [bookingData.ClockedOut, null, null, createdAt, existing.rows[0].id]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            bookingId,
+            "COMPLETED",
+            bookingData.ClockedOut,
+            null,
+            null,
+            createdAt,
+          ]
+        );
+      }
     }
+
     // Check if dispatch needs to be updated or created
     // if (bookingData.ServiceProviderManagerId) {
     //   // Get company ID from manager's legacy ID
@@ -915,80 +976,133 @@ export async function updateBookingServiceDetails(bookingData: any) {
     //   }
     // }
 
-    if (bookingData.ServiceProviderCompanyId) {
-      // Step 1: Get management company ID from legacy ID
-      const managementCompanyRes = await client.query(
-        `SELECT id FROM service_provider_management_companies WHERE legacy_id = $1`,
-        [bookingData.ServiceProviderCompanyId]
+    // Insert CANCELLED status if bsdCanceledAt exists
+    if (bookingData?.CanceledAt) {
+      const cancelTime =
+        bookingData.CanceledAt === "0000-00-00 00:00:00"
+          ? new Date("1970-01-01T00:00:00.000Z")
+          : new Date(bookingData.CanceledAt);
+
+      // Upsert CANCELLED status into status_history
+      const existing = await client.query(
+        `SELECT id FROM status_history
+         WHERE booking_id = $1 AND status = 'CANCELLED'
+         LIMIT 1`,
+        [bookingId]
       );
-      const managementCompanyId = managementCompanyRes.rows?.[0]?.id;
 
-      // Step 2: Get company ID under management company
-      let companyId: string | undefined;
-      if (managementCompanyId) {
-        const companyRes = await client.query(
-          `SELECT id FROM company WHERE service_provider_management_company_id = $1 AND type = 'SERVICE_PROVIDER'`,
-          [managementCompanyId]
+      if (existing.rows.length > 0) {
+        await client.query(
+          `UPDATE status_history
+           SET time = $1,
+               platform = $2,
+               message = $3,
+               created_at = $4
+           WHERE id = $5`,
+          [cancelTime, null, null, cancelTime, existing.rows[0].id]
         );
-        companyId = companyRes.rows?.[0]?.id;
+      } else {
+        await client.query(
+          `INSERT INTO status_history (booking_id, status, time, platform, message, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [bookingId, "CANCELLED", cancelTime, null, null, cancelTime]
+        );
       }
 
-      if (companyId) {
-        // Step 3: Check for existing dispatch
-        const dispatchRes = await client.query(
-          `SELECT id FROM dispatch WHERE company_id = $1 AND booking_id = $2`,
-          [companyId, bookingId]
-        );
-
-        const dispatchDate = bookingData.Start || bookingData.bCreatedAt;
-        const createdAt =
-          !bookingData.CreatedAt ||
-          bookingData.CreatedAt === "0000-00-00 00:00:00"
-            ? new Date()
-            : new Date(bookingData.CreatedAt);
-
-        let dispatchId: string;
-        if (dispatchRes.rows.length > 0) {
-          dispatchId = dispatchRes.rows[0].id;
-        } else {
-          const insertDispatchRes = await client.query(
-            `INSERT INTO dispatch (company_id, booking_id, date, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW())
-             RETURNING id`,
-            [companyId, bookingId, dispatchDate, createdAt]
-          );
-          dispatchId = insertDispatchRes.rows[0].id;
-        }
-
-        // Step 4: Upsert dispatch_pro if runner exists
-        if (bookingData.ServiceProviderRunnerId) {
-          // Step 4.1: Fetch userId from MySQL using ServiceProviderRunnerId
-          const [rows]: any = await mysqlConn.query(
-            `SELECT userId FROM service_provider_runner WHERE id = ?`,
-            [bookingData.ServiceProviderRunnerId]
-          );
-          const runnerUserId = rows?.[0]?.userId;
-
-          if (runnerUserId) {
-            // Step 4.2: Use runnerUserId as legacy_id to find PRO account in PostgreSQL
-            const proAccountRes = await client.query(
-              `SELECT id FROM account WHERE account_type = 'PRO' AND legacy_id = $1`,
-              [runnerUserId]
-            );
-            const proAccountId = proAccountRes.rows?.[0]?.id;
-            if (proAccountId) {
-              await client.query(
-                `INSERT INTO dispatch_pro (dispatch_id, account_id, created_at, updated_at)
-               VALUES ($1, $2, $3, NOW())
-               ON CONFLICT (dispatch_id, account_id)
-               DO UPDATE SET updated_at = NOW()`,
-                [dispatchId, proAccountId, createdAt]
-              );
-            }
-          }
-        }
-      }
+      // Upsert booking_cancel_details
+      await client.query(
+        `INSERT INTO booking_cancel_details (booking_id, reasons, comment, created_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (booking_id)
+         DO UPDATE SET 
+           reasons = EXCLUDED.reasons,
+           comment = EXCLUDED.comment,
+           created_at = EXCLUDED.created_at;`,
+        [
+          bookingId,
+          bookingData.CancelationReason
+            ? `{${bookingData.CancelationReason.replace(/'/g, "\\'")}}`
+            : "{}",
+          bookingData.CancelationNotes || null,
+          cancelTime,
+        ]
+      );
     }
+
+    // if (bookingData.ServiceProviderCompanyId) {
+    //   // Step 1: Get management company ID from legacy ID
+    //   const managementCompanyRes = await client.query(
+    //     `SELECT id FROM service_provider_management_companies WHERE legacy_id = $1`,
+    //     [bookingData.ServiceProviderCompanyId]
+    //   );
+    //   const managementCompanyId = managementCompanyRes.rows?.[0]?.id;
+
+    //   // Step 2: Get company ID under management company
+    //   let companyId: string | undefined;
+    //   if (managementCompanyId) {
+    //     const companyRes = await client.query(
+    //       `SELECT id FROM company WHERE service_provider_management_company_id = $1 AND type = 'SERVICE_PROVIDER'`,
+    //       [managementCompanyId]
+    //     );
+    //     companyId = companyRes.rows?.[0]?.id;
+    //   }
+
+    //   if (companyId) {
+    //     // Step 3: Check for existing dispatch
+    //     const dispatchRes = await client.query(
+    //       `SELECT id FROM dispatch WHERE company_id = $1 AND booking_id = $2`,
+    //       [companyId, bookingId]
+    //     );
+
+    //     const dispatchDate = bookingData.Start || bookingData.bCreatedAt;
+    //     const createdAt =
+    //       !bookingData.CreatedAt ||
+    //       bookingData.CreatedAt === "0000-00-00 00:00:00"
+    //         ? new Date()
+    //         : new Date(bookingData.CreatedAt);
+
+    //     let dispatchId: string;
+    //     if (dispatchRes.rows.length > 0) {
+    //       dispatchId = dispatchRes.rows[0].id;
+    //     } else {
+    //       const insertDispatchRes = await client.query(
+    //         `INSERT INTO dispatch (company_id, booking_id, date, created_at, updated_at)
+    //          VALUES ($1, $2, $3, $4, NOW())
+    //          RETURNING id`,
+    //         [companyId, bookingId, dispatchDate, createdAt]
+    //       );
+    //       dispatchId = insertDispatchRes.rows[0].id;
+    //     }
+
+    //     // Step 4: Upsert dispatch_pro if runner exists
+    //     if (bookingData.ServiceProviderRunnerId) {
+    //       // Step 4.1: Fetch userId from MySQL using ServiceProviderRunnerId
+    //       const [rows]: any = await mysqlConn.query(
+    //         `SELECT userId FROM service_provider_runner WHERE id = ?`,
+    //         [bookingData.ServiceProviderRunnerId]
+    //       );
+    //       const runnerUserId = rows?.[0]?.userId;
+
+    //       if (runnerUserId) {
+    //         // Step 4.2: Use runnerUserId as legacy_id to find PRO account in PostgreSQL
+    //         const proAccountRes = await client.query(
+    //           `SELECT id FROM account WHERE account_type = 'PRO' AND legacy_id = $1`,
+    //           [runnerUserId]
+    //         );
+    //         const proAccountId = proAccountRes.rows?.[0]?.id;
+    //         if (proAccountId) {
+    //           await client.query(
+    //             `INSERT INTO dispatch_pro (dispatch_id, account_id, created_at, updated_at)
+    //            VALUES ($1, $2, $3, NOW())
+    //            ON CONFLICT (dispatch_id, account_id)
+    //            DO UPDATE SET updated_at = NOW()`,
+    //             [dispatchId, proAccountId, createdAt]
+    //           );
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
 
     await client.query("COMMIT");
     console.log(

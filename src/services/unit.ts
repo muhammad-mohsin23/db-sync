@@ -168,7 +168,7 @@ export async function getUnitFromUnitResident(unitResidentId: number) {
   try {
     // Step 1: Get unit_id from MySQL
     const [mysqlRows]: any[] = await mysqlConn.execute(
-      `SELECT UnitId FROM unitresident WHERE id = ?`,
+      `SELECT UnitId FROM unitresidents WHERE Id = ?`,
       [unitResidentId]
     );
 
@@ -177,7 +177,7 @@ export async function getUnitFromUnitResident(unitResidentId: number) {
       return null;
     }
 
-    const legacyUnitId = mysqlRows[0].unit_id;
+    const legacyUnitId = mysqlRows[0].UnitId;
 
     // Step 2: Get matching unit from PostgreSQL using legacy_id
     const pgClient = await pgPool.connect();

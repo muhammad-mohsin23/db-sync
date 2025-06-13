@@ -12,6 +12,7 @@ export async function insertInvoice(invoiceData: any) {
 
     if (!bookingId) {
       await client.query("ROLLBACK");
+      console.log(`Booking with legacy_id ${invoiceData.BookingId} not found.`);
       return;
     }
 
@@ -32,12 +33,13 @@ export async function insertInvoice(invoiceData: any) {
           invoice_number, booking_id, brain_tree_id, disbursement_id,
           refund_id, status, refund_status, refunded_at,
           transaction_id, type, pre_authorization_id, legacy_id,
+          created_at,
            updated_at
         ) VALUES (
           $1, $2, $3, $4,
           $5, $6, $7, $8,
           $9, $10, $11, $12,
-          $13, $14, $15
+          $13,$14
         )`,
       [
         `INV-${invoiceData.Id}`,
@@ -52,6 +54,7 @@ export async function insertInvoice(invoiceData: any) {
         invoiceData.Type || null,
         invoiceData.PreAuthorizationId || null,
         invoiceData.Id,
+        invoiceData.CreatedAt ?? new Date(),
         new Date(),
       ]
     );
@@ -73,7 +76,8 @@ export async function insertInvoiceItem(invoiceItem: any) {
     await client.query("BEGIN");
 
     // Get invoice_id (UUID) from legacy invoice ID
-    const invoiceId = getInvoiceIdByLegacyId(invoiceItem.InvoiceId);
+    const invoiceId = await getInvoiceIdByLegacyId(invoiceItem.InvoiceId);
+    console.log("Invoice ID:", invoiceId);
 
     if (!invoiceId) {
       await client.query("ROLLBACK");
@@ -84,7 +88,7 @@ export async function insertInvoiceItem(invoiceItem: any) {
     // Check for duplicate invoice item
     const existing = await client.query(
       `SELECT id FROM invoice_items WHERE legacy_id = $1 AND invoice_id = $2`,
-      [invoiceItem.invoiceLineItemId, invoiceId]
+      [invoiceItem.id, invoiceId]
     );
 
     if (existing.rows.length > 0) {
@@ -97,18 +101,19 @@ export async function insertInvoiceItem(invoiceItem: any) {
 
     await client.query(
       `INSERT INTO invoice_items (
-          invoice_id, price, title, type, legacy_id,
+          invoice_id, price, title, type, legacy_id,created_at,
            updated_at
         ) VALUES (
           $1, $2, $3, $4, $5,
-          $6, $7
+          $6,$7
         )`,
       [
         invoiceId,
-        invoiceItem.Amount || 0,
+        Number(invoiceItem.Amount) || 0,
         invoiceItem.Title,
         invoiceItem.Type,
-        invoiceItem.invoiceLineItemId,
+        invoiceItem.Id,
+        invoiceItem.CreatedAt ?? new Date(),
         new Date(),
       ]
     );
@@ -205,7 +210,7 @@ export async function updateInvoiceItem(invoiceItem: any) {
   }
 }
 
-export async function updateInvoice(invoiceData: any) {
+export async function updateInvoice(invoiceData: any, mysqlConn?: any) {
   const client = await pgPool.connect();
 
   try {
@@ -234,22 +239,20 @@ export async function updateInvoice(invoiceData: any) {
 
     await client.query(
       `UPDATE invoice SET
-        invoice_number = $1,
-        booking_id = $2,
-        brain_tree_id = $3,
-        disbursement_id = $4,
-        refund_id = $5,
-        status = $6,
-        refund_status = $7,
-        refunded_at = $8,
-        transaction_id = $9,
-        type = $10,
-        pre_authorization_id = $11,
-        updated_at = $12
-        deleted_at = $13
-       WHERE legacy_id = $14`,
+        booking_id = $1,
+        brain_tree_id = $2,
+        disbursement_id = $3,
+        refund_id = $4,
+        status = $5,
+        refund_status = $6,
+        refunded_at = $7,
+        transaction_id = $8,
+        type = $9,
+        pre_authorization_id = $10,
+        updated_at = $11,
+        deleted_at = $12
+       WHERE legacy_id = $13`,
       [
-        `INV-${invoiceData.Id}`,
         bookingId,
         invoiceData.BraintreeId || null,
         invoiceData.DisbursementId || null,
@@ -260,8 +263,8 @@ export async function updateInvoice(invoiceData: any) {
         invoiceData.TransactionId || null,
         invoiceData.Type || null,
         invoiceData.PreAuthorizationId || null,
-        new Date(),
-        invoiceData.DeletedAt ? new Date(invoiceData.DeletedAt) : null,
+        invoiceData.updatedAt ?? new Date(),
+        invoiceData.DeletedAt ? invoiceData.DeletedAt : null,
         invoiceData.Id,
       ]
     );

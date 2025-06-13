@@ -1,8 +1,8 @@
 import mysql from "mysql2/promise";
 import { Pool } from "pg";
-// import dotenv from "dotenv";
+import dotenv from "dotenv";
 
-// dotenv.config();
+dotenv.config();
 // MySQL connection
 export const mysqlConnection = async () => {
   try {
@@ -33,6 +33,7 @@ export const pgPool = new Pool({
 
 export const checkPostgresConnection = async () => {
   try {
+    console.log("Connecting with user:", process.env.PG_USER);
     const client = await pgPool.connect();
     await client.query("SELECT 1"); // Simple query to check connection
     client.release();
