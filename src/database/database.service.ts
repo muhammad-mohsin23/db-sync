@@ -31,6 +31,8 @@ export const pgPool = new Pool({
   port: Number(process.env.PG_PORT),
 });
 
+export default pgPool;
+
 export const checkPostgresConnection = async () => {
   try {
     console.log("Connecting with user:", process.env.PG_USER);
@@ -43,3 +45,5 @@ export const checkPostgresConnection = async () => {
     throw error;
   }
 };
+
+

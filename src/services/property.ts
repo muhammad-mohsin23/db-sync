@@ -26,7 +26,7 @@ export async function getPropertyIdByLegacyId(legacyId: number) {
   }
 }
 
-export async function insertProperty(propertyData: any) {
+export async function insertProperty(propertyData: any, mysqlConn: any) {
   const client = await pgPool.connect();
 
   try {
@@ -251,7 +251,10 @@ export async function insertProperty(propertyData: any) {
   }
 }
 
-export async function insertPropertyManager(propertyManagerData: any) {
+export async function insertPropertyManager(
+  propertyManagerData: any,
+  mysqlConn: any
+) {
   const client = await pgPool.connect();
 
   try {

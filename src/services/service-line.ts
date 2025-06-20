@@ -1,7 +1,7 @@
 import { pgPool } from "../database/database.service";
 import { createSlug } from "../helpers/util.herlper";
 
-export async function insertServiceLine(serviceLineData: any) {
+export async function insertServiceLine(serviceLineData: any, mysqlConn: any) {
   const client = await pgPool.connect();
 
   try {
@@ -42,7 +42,7 @@ export async function insertServiceLine(serviceLineData: any) {
   }
 }
 
-export async function insertService(serviceData: any) {
+export async function insertService(serviceData: any, mysqlConn: any) {
   const client = await pgPool.connect();
 
   try {
@@ -99,7 +99,11 @@ export async function insertService(serviceData: any) {
   }
 }
 
-export async function updateService(serviceData: any) {
+export async function updateService(
+  serviceData: any,
+  mysqlConn: any,
+  id?: any
+) {
   const client = await pgPool.connect();
 
   try {
@@ -162,7 +166,11 @@ export async function updateService(serviceData: any) {
   }
 }
 
-export async function updateServiceLine(serviceData: any) {
+export async function updateServiceLine(
+  serviceData: any,
+  mysqlConn: any,
+  id?: any
+) {
   const client = await pgPool.connect();
 
   try {

@@ -1,6 +1,6 @@
 import { pgPool } from "../database/database.service";
 
-export async function InsertMarket(item: any) {
+export async function insertMarket(item: any, mysqlConn: any) {
   const pgConn = await pgPool.connect();
 
   try {
@@ -33,7 +33,7 @@ export async function InsertMarket(item: any) {
   }
 }
 
-export async function updateMarket(item: any) {
+export async function updateMarket(item: any, mysqlConn: any, id?: any) {
   const pgConn = await pgPool.connect();
 
   try {

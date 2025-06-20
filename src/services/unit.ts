@@ -1,6 +1,6 @@
 import { mysqlConnection, pgPool } from "../database/database.service";
 
-export async function insertPropertyUnit(item: any) {
+export async function insertPropertyUnit(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
   try {
     await client.query("BEGIN");
@@ -46,7 +46,7 @@ export async function insertPropertyUnit(item: any) {
         item.number,
         item.building_number,
         item.unitID,
-        new Date(),
+        item.UpdatedAt ?? new Date(),
       ]
     );
 
@@ -59,7 +59,7 @@ export async function insertPropertyUnit(item: any) {
   }
 }
 
-export async function insertTenantGroupUnit(item: any) {
+export async function insertTenantGroupUnit(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
   try {
     await client.query("BEGIN");

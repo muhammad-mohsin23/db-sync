@@ -119,3 +119,22 @@ export function classifyTimeRange(
 
   return "Anytime"; // Covers overlaps or full-day ranges like 9–17
 }
+
+export function getServiceLineUuid(msTitle: string): string {
+  switch (msTitle) {
+    case "Housekeeping":
+      return "1545497c-672c-4bc9-8187-f0c700853b8e";
+    case "Pet Care":
+      return "1e84f7cb-0a6b-48a1-a04e-5f06e42864b5";
+    case "Laundry":
+      return "129fc3c3-ac9b-4eb2-a942-d3ff3325bc39";
+    case "Mini Cleaning":
+      return "899c8dec-2e0d-4f54-ad65-d950431efe56";
+    case "Chores":
+      return "669c8dec-2e0d-4f54-ad65-d950431efe55";
+    case "Partner Services":
+      return "249fc3c3-ac9b-4eb2-a942-d3ff3325bc47";
+    default:
+      return "1545497c-672c-4bc9-8187-f0c700853b8e";
+  }
+}

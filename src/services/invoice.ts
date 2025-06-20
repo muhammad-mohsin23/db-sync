@@ -1,7 +1,7 @@
 import { pgPool } from "../database/database.service";
 import { getBookingIdByLegacyId } from "./booking";
 
-export async function insertInvoice(invoiceData: any) {
+export async function insertInvoice(invoiceData: any, mysqlConn: any) {
   const client = await pgPool.connect();
 
   try {
@@ -13,7 +13,10 @@ export async function insertInvoice(invoiceData: any) {
     if (!bookingId) {
       await client.query("ROLLBACK");
       console.log(`Booking with legacy_id ${invoiceData.BookingId} not found.`);
-      return;
+      throw new Error(
+        `Booking with legacy_id ${invoiceData.BookingId} not found.`
+      );
+      // return;
     }
 
     // Check if invoice already exists
@@ -25,7 +28,10 @@ export async function insertInvoice(invoiceData: any) {
     if (existing.rows.length > 0) {
       await client.query("ROLLBACK");
       console.log(`Invoice with legacy_id ${invoiceData.Id} already exists.`);
-      return;
+      throw new Error(
+        `Invoice with legacy_id ${invoiceData.Id} already exists.`
+      );
+      // return;
     }
 
     await client.query(
@@ -69,7 +75,7 @@ export async function insertInvoice(invoiceData: any) {
   }
 }
 
-export async function insertInvoiceItem(invoiceItem: any) {
+export async function insertInvoiceItem(invoiceItem: any, mysqlConn: any) {
   const client = await pgPool.connect();
 
   try {
@@ -82,7 +88,10 @@ export async function insertInvoiceItem(invoiceItem: any) {
     if (!invoiceId) {
       await client.query("ROLLBACK");
       console.log(`Invoice with legacy_id ${invoiceItem.InvoiceId} not found.`);
-      return;
+      // return;
+      throw new Error(
+        `Invoice with legacy_id ${invoiceItem.InvoiceId} not found.`
+      );
     }
 
     // Check for duplicate invoice item
@@ -96,7 +105,10 @@ export async function insertInvoiceItem(invoiceItem: any) {
       console.log(
         `Invoice item already exists for legacy_id ${invoiceItem.invoiceLineItemId}`
       );
-      return;
+      // return;
+      throw new Error(
+        `Invoice item already exists for legacy_id ${invoiceItem.invoiceLineItemId}`
+      );
     }
 
     await client.query(
@@ -120,9 +132,10 @@ export async function insertInvoiceItem(invoiceItem: any) {
 
     await client.query("COMMIT");
     console.log("✅ Invoice item inserted successfully.");
-  } catch (err) {
+  } catch (err: any) {
     await client.query("ROLLBACK");
     console.error("❌ Error inserting invoice item:", err);
+    throw new Error(`Error inserting invoice item: ${err.message}`);
   } finally {
     client.release();
   }
@@ -151,19 +164,26 @@ export async function getInvoiceIdByLegacyId(invoiceLegacyId: number) {
   }
 }
 
-export async function updateInvoiceItem(invoiceItem: any) {
+export async function updateInvoiceItem(
+  invoiceItem: any,
+  mysqlConn: any,
+  id?: any
+) {
   const client = await pgPool.connect();
 
   try {
     await client.query("BEGIN");
 
     // Get invoice_id (UUID) from legacy invoice ID
-    const invoiceId = getInvoiceIdByLegacyId(invoiceItem.InvoiceId);
+    const invoiceId = await getInvoiceIdByLegacyId(invoiceItem.InvoiceId);
 
     if (!invoiceId) {
       await client.query("ROLLBACK");
       console.log(`Invoice with legacy_id ${invoiceItem.InvoiceId} not found.`);
-      return;
+      throw new Error(
+        `Invoice with legacy_id ${invoiceItem.InvoiceId} not found.`
+      );
+      // return;
     }
 
     // Check if the invoice item exists
@@ -177,7 +197,10 @@ export async function updateInvoiceItem(invoiceItem: any) {
       console.log(
         `Invoice item with legacy_id ${invoiceItem.invoiceLineItemId} not found.`
       );
-      return;
+      throw new Error(
+        `Invoice item with legacy_id ${invoiceItem.invoiceLineItemId} not found.`
+      );
+      // return;
     }
 
     // Proceed to update the invoice item
@@ -186,7 +209,7 @@ export async function updateInvoiceItem(invoiceItem: any) {
         price = $1,
         title = $2,
         type = $3,
-        updated_at = $4
+        updated_at = $4,
         deleted_at = $5
        WHERE legacy_id = $6 AND invoice_id = $7`,
       [
@@ -202,27 +225,37 @@ export async function updateInvoiceItem(invoiceItem: any) {
 
     await client.query("COMMIT");
     console.log("✅ Invoice item updated successfully.");
-  } catch (err) {
+  } catch (err: any) {
     await client.query("ROLLBACK");
     console.error("❌ Error updating invoice item:", err);
+    throw new Error(`Error updating invoice item: ${err.message}`);
   } finally {
     client.release();
   }
 }
 
-export async function updateInvoice(invoiceData: any, mysqlConn?: any) {
-  const client = await pgPool.connect();
+export async function updateInvoice(
+  invoiceData: any,
+  mysqlConn: any,
+  id?: any
+) {
+  console.log("Inside updateInvoice function with data:");
 
+  const client = await pgPool.connect();
   try {
     await client.query("BEGIN");
+    console.log("Begin updateInvoice function with data:");
 
-    // Get booking UUID from legacy BookingId
     const bookingId = await getBookingIdByLegacyId(invoiceData.BookingId);
+    console.log("Booking ID found :", bookingId);
 
     if (!bookingId) {
       await client.query("ROLLBACK");
       console.log(`Booking with legacy_id ${invoiceData.BookingId} not found.`);
-      return;
+      throw new Error(
+        `Booking with legacy_id ${invoiceData.BookingId} not found.`
+      );
+      // return;
     }
 
     // Check if invoice exists
@@ -234,7 +267,8 @@ export async function updateInvoice(invoiceData: any, mysqlConn?: any) {
     if (existing.rows.length === 0) {
       await client.query("ROLLBACK");
       console.log(`Invoice with legacy_id ${invoiceData.Id} not found.`);
-      return;
+      throw new Error(`Invoice with legacy_id ${invoiceData.Id} not found.`);
+      // return;
     }
 
     await client.query(
@@ -271,10 +305,12 @@ export async function updateInvoice(invoiceData: any, mysqlConn?: any) {
 
     await client.query("COMMIT");
     console.log("✅ Invoice updated successfully.");
-  } catch (err) {
+  } catch (err: any) {
     await client.query("ROLLBACK");
     console.error("❌ Error updating invoice:", err);
+    throw new Error(`Error updating invoice: ${err.message}`);
   } finally {
+    console.log("test");
     client.release();
   }
 }

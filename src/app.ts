@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { fetchData } from "./cron/cron.service";
+import { fetchData, fetchUpdateData } from "./cron/cron.service";
 import cron from "node-cron";
 import { checkPostgresConnection } from "./database/database.service";
 
@@ -8,14 +8,39 @@ const port: number = 3001;
 
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello World!");
+  fetchData();
 });
 
-cron.schedule("*/3 * * * *", async () => {
-  console.log("⏰ Running scheduled fetchData at", new Date().toISOString());
+// app.get("/test", (req: Request, res: Response) => {
+//   try {
+//     console.log("try");
+//     throw new Error();
+//   } catch (e) {
+//     console.log("catch");
+//     throw new Error();
+//   } finally {
+//     console.log("finally");
+//   }
+// });
+
+// cron.schedule("0,30 * * * *", async () => {
+//   console.log("⏰ Running scheduled fetchData at", new Date().toISOString());
+//   try {
+//     await fetchData();
+//   } catch (error) {
+//     console.error("Scheduled fetchData failed:", error);
+//   }
+// });
+
+cron.schedule("10,40 * * * *", async () => {
+  console.log(
+    "⏰ Running scheduled fetchUpdateData at",
+    new Date().toISOString()
+  );
   try {
-    await fetchData();
+    await fetchUpdateData();
   } catch (error) {
-    console.error("Scheduled fetchData failed:", error);
+    console.error("Scheduled fetchUpdateData failed:", error);
   }
 });
 

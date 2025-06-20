@@ -1,6 +1,7 @@
 import { pgPool } from "../database/database.service";
+import bcrypt from "bcrypt";
 
-export async function insertCustomerToAccount(item: any) {
+export async function insertCustomerToAccount(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
   try {
     await client.query("BEGIN");
@@ -43,11 +44,12 @@ $1, $2, $3, $4, $5
         new Date(),
       ]
     );
-    // Insert into account_credential
+    const hashedPassword = await bcrypt.hash(item.Password, 10);
     const authInfo = JSON.stringify({
       hasher: "bcrypt",
-      password: item.Password,
+      password: hashedPassword,
     });
+    // Insert into account_credential
     await client.query(
       `INSERT INTO account_credential (
 account_id, provider, provider_key, auth_info,updated_at
@@ -59,15 +61,22 @@ $1, $2, $3, $4, $5
     await client.query("COMMIT");
     console.log(`Inserted customer ${item.CustomerId}`);
     return accountId;
-  } catch (err) {
+  } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(`Error inserting customer ${item.CustomerId}:`, err);
+    throw new Error(
+      `Failed to insert customer ${item.CustomerId}: ${err.message}`
+    );
   } finally {
     client.release();
   }
 }
 
-export async function updateCustomerInAccount(item: any) {
+export async function updateCustomerInAccount(
+  item: any,
+  mysqlConn: any,
+  id?: any
+) {
   const client = await pgPool.connect();
   try {
     await client.query("BEGIN");
@@ -80,7 +89,10 @@ export async function updateCustomerInAccount(item: any) {
     if (result.rowCount === 0) {
       console.warn(`No existing account found for customer ${item.CustomerId}`);
       await client.query("ROLLBACK");
-      return;
+      // return;
+      throw new Error(
+        `No existing account found for customer ${item.CustomerId}`
+      );
     }
     const accountId = result.rows[0].id;
     // Update account
@@ -94,7 +106,8 @@ zip_code = $5,
 status = $6,
 account_type = $7,
 updated_at = $8
-WHERE id = $9`,
+deleted_at=$9
+WHERE id = $10`,
       [
         item.FirstName,
         item.LastName || null,
@@ -104,6 +117,7 @@ WHERE id = $9`,
         "ACTIVE",
         item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT",
         new Date(),
+        item.DeletedAt || null,
         accountId,
       ]
     );
@@ -114,12 +128,14 @@ address = $1,
 city = $2,
 state = $3,
 updated_at = $4
-WHERE account_id = $5`,
+deleted_at = $5
+WHERE account_id = $6`,
       [
         item.BillingAddress || null,
         item.City || null,
         item.State || null,
         new Date(),
+        item.DeletedAt ?? null,
         accountId,
       ]
     );
@@ -132,14 +148,18 @@ WHERE account_id = $5`,
       `UPDATE account_credential SET
 auth_info = $1,
 updated_at = $2
-WHERE account_id = $3 AND provider = 'PASSWORD'`,
-      [authInfo, new Date(), accountId]
+deleted_at = $3
+WHERE account_id = $4 AND provider = 'PASSWORD'`,
+      [authInfo, new Date(), item.deletedAt ?? null, accountId]
     );
     await client.query("COMMIT");
     console.log(`Updated customer ${item.CustomerId}`);
-  } catch (err) {
+  } catch (err: any) {
     await client.query("ROLLBACK");
     console.error(`Error updating customer ${item.CustomerId}:`, err);
+    throw new Error(
+      `Failed to update customer ${item.CustomerId}: ${err.message}`
+    );
   } finally {
     client.release();
   }
@@ -158,7 +178,10 @@ export async function deleteCustomerInAccount(item: any) {
     if (result.rowCount === 0) {
       console.warn(`No existing account found for customer ${item.CustomerId}`);
       await client.query("ROLLBACK");
-      return;
+      throw new Error(
+        `No existing account found for customer ${item.CustomerId}`
+      );
+      // return;
     }
     const accountId = result.rows[0].id;
     // Update account
@@ -215,15 +238,18 @@ WHERE account_id = $3 AND provider = 'PASSWORD'`,
     );
     await client.query("COMMIT");
     console.log(`Updated customer ${item.CustomerId}`);
-  } catch (err) {
+  } catch (err: any) {
     await client.query("ROLLBACK");
+    throw new Error(
+      `Failed to update customer ${item.CustomerId}: ${err.message}`
+    );
     console.error(`Error updating customer ${item.CustomerId}:`, err);
   } finally {
     client.release();
   }
 }
 
-export async function insertCustomerEntry(item: any) {
+export async function insertCustomerEntry(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
 
   try {
@@ -247,7 +273,10 @@ export async function insertCustomerEntry(item: any) {
       console.log(
         `Home access instruction already exists for account_id ${accountId}.`
       );
-      return;
+      throw new Error(
+        `Home access instruction already exists for account_id ${accountId}.`
+      );
+      // return;
     }
 
     // Step 2: Insert the home access instruction entry

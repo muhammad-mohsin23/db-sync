@@ -1,7 +1,7 @@
 import { pgPool } from "../database/database.service";
 import { getAccountIdByLegacyId } from "./customer";
 
-export async function insertCoupon(couponData: any) {
+export async function insertCoupon(couponData: any, mysqlConn: any) {
   const client = await pgPool.connect();
   try {
     await client.query("BEGIN");

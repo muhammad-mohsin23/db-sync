@@ -1,6 +1,6 @@
 import { pgPool } from "../database/database.service";
 
-export async function insertFloorPlan(item: any) {
+export async function insertFloorPlan(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
 
   try {
@@ -13,7 +13,8 @@ export async function insertFloorPlan(item: any) {
 
     if (res.rows.length > 0) {
       await client.query("ROLLBACK");
-      return;
+      throw new Error(`Floor plan with legacy_id ${item.id} already exists.`);
+      // return;
     }
 
     await client.query(
@@ -33,7 +34,7 @@ export async function insertFloorPlan(item: any) {
   }
 }
 
-export async function updateFloorPlan(item: any) {
+export async function updateFloorPlan(item: any, mysqlConn: any, id: any) {
   const client = await pgPool.connect();
 
   try {
