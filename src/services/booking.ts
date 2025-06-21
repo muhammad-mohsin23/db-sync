@@ -642,6 +642,16 @@ export async function insertRepeatBookings(
     if (!originalRows.length) {
       throw new Error(`Original booking ${OriginalBookingId} not found`);
     }
+
+    const { rows: bookingRows } = await client.query(
+      `SELECT id,repeat_interval FROM booking WHERE legacy_id = $1`,
+      [BookingId]
+    );
+
+    if (!bookingRows.length) {
+      throw new Error(`Original booking ${BookingId} not found`);
+    }
+
     const originalBookingId = originalRows[0].id;
     const repeatInterval = originalRows[0].repeat_interval;
 
@@ -1627,36 +1637,111 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
   try {
     await client.query("BEGIN");
 
+    // 1. First, get the marketId from marketservices using the MarketServiceId
+    const [marketRows]: any = await mysqlConn.execute(
+      `SELECT MarketId FROM marketservices WHERE Id = ? LIMIT 1`,
+      [bookingData.MarketServiceId]
+    );
+
+    if (!marketRows || marketRows.length === 0) {
+      await client.query("ROLLBACK");
+      throw new Error(
+        `Market not found for MarketServiceId: ${bookingData.MarketServiceId}`
+      );
+    }
+
+    const marketId = marketRows[0].MarketId;
+
     // 1. Fetch the specific booking from MySQL with all related data
     const [bookingRows]: any = await mysqlConn.execute(
       `SELECT 
-        b.*,
-        ac.BelongsToMarket,
-        o.Title as oTitle,
-        o.Description,
-        o.MarketServiceId,
-        ms.Title as msTitle,
-        c.*,
-        u.Id as unitId,
-        u.Building as building_number,
-        u.Number as unit_number,
-        fp.Id as fpId,
-        fp.Name as floorPlanName,
-        fp.Beds as bedrooms,
-        fp.Baths as bathrooms,
-        ur.Id as unitResidentId
-      FROM bookings b
-      LEFT JOIN apartmentcomplexes ac ON b.PropertyId = ac.ApartmentId
-      LEFT JOIN options o ON o.Id = b.OptionId
-      LEFT JOIN marketservices ms ON ms.Id = o.MarketServiceId
-      LEFT JOIN customers c ON b.CustomerId = c.CustomerId
-      LEFT JOIN unitresidents ur ON c.CustomerId = ur.CustomerId
-      LEFT JOIN units u ON ur.UnitId = u.Id
-      LEFT JOIN floorplans fp ON fp.Id = u.FloorPlanId
-      WHERE b.Id = ? 
-      AND o.MarketServiceId = ?
-      AND b.DeletedAt IS NULL`,
-      [bookingData.Id, bookingData.MarketServiceId]
+      spm.ServiceProviderCompanyId,
+      spr.MobilePhone as spmMobilePhone,
+      spr.Email as spmEmail,
+      spr.Address as spmAddress,
+      spr.City as spmCity,
+      spr.State as spmState,
+      spr.ZipCode as spmZipCode,
+      bsd.ServiceProviderManagerId,
+      bsd.ServiceProviderRunnerId,
+      bsd.Status as bsdStatus,
+      bsd.ClockedIn as bsdClockedIn,
+      bsd.ClockedOut as bsdClockedOut,
+      bsd.OnTheWay as bsdOnTheWay,
+      bsd.CanceledAt as bsdCanceledAt,
+      bsd.CancelationReason as bsdCancelationReason,
+      bsd.CancelationNotes as bsdCancelationNotes,
+      adon.Id as addonId,
+      ba.Id as baId,
+      adon.Name as addonName,
+      adon.Description as addonDescription,
+      adon.Price as addonPrice,
+      adon.CreatedAt as addonCreatedAt,
+      adon.DeletedAt as addonDeletedAt,
+      ac.BelongsToMarket,
+      b.*,
+      b.Notes as bNotes,
+      b.CreatedAt as bCreatedAt,
+      u.FloorPlanId,
+      slom.service_line_option_id,
+      o.Title as oTitle,
+      o.Description,
+      fp.Id as fpId,
+      fp.Baths as bathrooms,
+      fp.Beds as bedrooms,
+      fp.Name as floorPlanName,
+      fp.CreatedAt as floorPlanCreatedAt,
+      fp.DeletedAt as floorPlanDeletedAt,
+      u.Id as unitID,
+      u.FloorPlanId as unitFloorPlanId,
+      u.ApartmentComplexId as unitApartmentComplexId,
+      u.Building as building_number,
+      u.Number as number,
+      u.CreatedAt as uCreatedAt,
+      ac.DataWarehouseId,
+      c.*,
+      c.AccountType as cAccountType,
+      c.CreatedAt as cCreatedAt,
+      c.UpdatedAt as cUpdatedAt,
+      us.FirstName as userFirstName,
+      us.LastName as userLastName,
+      us.email as userEmail,
+      us.Id as userId,
+      us.password as UserPassword,
+      us.CreatedAt as userCreatedAt,
+      us.UpdatedAt as userUpdatedAt,
+      us.DeletedAt as userDeletedAt,
+      slo.service_line_id as sloServiceLineId,
+      ms.Title as msTitle,
+      ce.method as ceMethod,
+      ce.code as ceCode,
+      ce.details as ceDetails,
+      ce.additional_notes as ceAdditional_notes,
+      hbf.Description as HearAboutFrom
+    FROM bookings b
+    LEFT JOIN apartmentcomplexes ac ON b.PropertyId = ac.ApartmentId
+    LEFT JOIN customers c ON b.CustomerId = c.CustomerId
+    LEFT JOIN hearaboutfroms hbf ON hbf.Id = c.HearAboutFromId
+    LEFT JOIN customer_entry ce ON ce.customer_id = c.CustomerId
+    LEFT JOIN unitresidents ur ON c.CustomerId = ur.CustomerId
+    LEFT JOIN units u ON ur.UnitId = u.Id
+    LEFT JOIN floorplans fp ON fp.Id = u.FloorPlanId
+    LEFT JOIN options o ON o.Id = b.OptionId
+    LEFT JOIN service_line_option_mapping slom ON slom.option_id = b.OptionId
+    LEFT JOIN service_line_options slo ON slo.id = slom.service_line_option_id
+    LEFT JOIN bookingaddons ba ON ba.BookingId = b.Id
+    LEFT JOIN addons adon ON adon.Id = ba.AddOnId
+    LEFT JOIN marketservices ms ON ms.Id = o.MarketServiceId
+    LEFT JOIN bookingservicedetails bsd ON bsd.BookingId = b.Id
+    LEFT JOIN serviceprovidermanagers spm ON spm.ServiceProviderManagerId = bsd.ServiceProviderManagerId
+    LEFT JOIN serviceproviderrunners spr ON spr.ServiceProviderRunnerId = bsd.ServiceProviderRunnerId
+    LEFT JOIN users us ON us.Id = spr.UserId
+    WHERE ac.BelongsToMarket = ?
+      AND b.Id = ?
+      AND b.DeletedAt IS NULL
+      AND ur.DeletedAt IS NULL;
+  `,
+      [marketId, bookingData.Id]
     );
 
     if (!bookingRows || bookingRows.length === 0) {
@@ -1667,6 +1752,15 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
     }
 
     const item = bookingRows[0];
+
+    let status = "IN_PROGRESS";
+    if (item.bsdStatus === "Completed") {
+      status = "COMPLETED";
+    } else if (item.bsdStatus === "Canceled") {
+      status = "CANCELLED";
+    } else if (item.bsdStatus === "Pending") {
+      status = "ASSIGNED";
+    }
 
     // 2. Check if booking already exists by legacy_id
     const existing = await client.query(
@@ -1740,7 +1834,7 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
         propertyId,
         serviceId,
         bookingDate,
-        "CONFIRMED", // Default status
+        // Default status
         item.Notes || null,
         item.PaymentTokenId || null,
         unitId,
@@ -1760,6 +1854,45 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
       await processSchedule(item, newBookingId, mysqlConn, client);
     }
 
+    if (item.addonId) {
+      await processAddon(item, newBookingId, serviceId, client);
+    }
+    if (item.bsdClockedIn) {
+      await insertBookingStatusHistory(
+        newBookingId,
+        "CLOCK_IN",
+        item.bsdClockedIn,
+        client
+      );
+    }
+
+    if (item.bsdOnTheWay) {
+      await insertBookingStatusHistory(
+        newBookingId,
+        "ON_THE_WAY",
+        item.bsdOnTheWay,
+        client
+      );
+    }
+
+    if (item.bsdClockedOut) {
+      await insertBookingStatusHistory(
+        newBookingId,
+        "COMPLETED",
+        item.bsdClockedOut,
+        client
+      );
+    }
+
+    if (item.bsdCanceledAt) {
+      await insertBookingStatusHistory(
+        newBookingId,
+        "CANCELLED",
+        item.bsdCanceledAt,
+        client
+      );
+    }
+
     await client.query("COMMIT");
     return newBookingId;
   } catch (err: any) {
@@ -1770,12 +1903,17 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
     client.release();
   }
 }
-
 // Helper functions
 async function getOrCreateAccount(item: any, client: any): Promise<number> {
   // Check if account exists
+  const accountType =
+    item.cAccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT";
+
+  let username =
+    accountType === "STR" ? `${item.CustomerId}-${item.Email}` : item.Email;
+
   const accountResult = await client.query(
-    `SELECT id FROM account WHERE legacy_id = $1`,
+    `SELECT id FROM account WHERE legacy_id = $1 and account_type in ('RESIDENT','STR')`,
     [item.CustomerId]
   );
 
@@ -1783,11 +1921,16 @@ async function getOrCreateAccount(item: any, client: any): Promise<number> {
     return accountResult.rows[0].id;
   }
 
+  if (accountType === "RESIDENT") {
+    const usernameCheck = await client.query(
+      `SELECT id FROM account WHERE username = $1 AND account_type = 'RESIDENT'`,
+      [item.Email]
+    );
+    if (usernameCheck.rows.length > 0) {
+      username = `${item.CustomerId}-duplicate${item.Email}`;
+    }
+  }
   // Create new account
-  const accountType =
-    item.cAccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT";
-  const username =
-    accountType === "STR" ? `${item.CustomerId}-${item.Email}` : item.Email;
 
   // 1. First create the account
   const accountInsertResult = await client.query(
@@ -2072,5 +2215,115 @@ async function processSchedule(
       item.CreatedAt ? new Date(item.CreatedAt) : new Date(),
       item.UpdatedAt ? new Date(item.UpdatedAt) : new Date(),
     ]
+  );
+}
+
+async function processAddon(
+  item: any,
+  bookingId: string,
+  serviceId: string,
+  client: any
+) {
+  try {
+    // First get the service to get the service_line_id
+    const serviceResult = await client.query(
+      `SELECT service_line_id FROM service WHERE id = $1`,
+      [serviceId]
+    );
+
+    if (serviceResult.rows.length === 0) {
+      throw new Error(`Service not found with ID: ${serviceId}`);
+    }
+
+    const serviceLineId = serviceResult.rows[0].service_line_id;
+
+    // Check if addon exists
+    const addonResult = await client.query(
+      `SELECT id FROM addon WHERE legacy_id = $1`,
+      [item.addonId]
+    );
+
+    let addonId: string;
+    const createdAt = item.addonCreatedAt
+      ? new Date(item.addonCreatedAt)
+      : new Date();
+    const deletedAt =
+      item.addonDeletedAt && item.addonDeletedAt !== "0000-00-00 00:00:00"
+        ? new Date(item.addonDeletedAt)
+        : null;
+
+    if (addonResult.rows.length === 0) {
+      // Create new addon
+      const addonInsert = await client.query(
+        `INSERT INTO addon (
+          name, description, service_line_id, legacy_id,
+          created_at, updated_at, deleted_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id`,
+        [
+          item.addonName,
+          item.addonDescription,
+          serviceLineId,
+          item.addonId,
+          createdAt,
+          new Date(),
+          deletedAt,
+        ]
+      );
+      addonId = addonInsert.rows[0].id;
+
+      // Create addon pricing
+      await client.query(
+        `INSERT INTO addon_pricing (
+          addon_id, service_line_id, price, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5)`,
+        [addonId, serviceLineId, item.addonPrice, createdAt, new Date()]
+      );
+    } else {
+      addonId = addonResult.rows[0].id;
+    }
+
+    // Check if booking_addon relationship exists
+    const bookingAddonResult = await client.query(
+      `SELECT id FROM booking_addon 
+       WHERE addon_id = $1 AND booking_id = $2`,
+      [addonId, bookingId]
+    );
+
+    if (bookingAddonResult.rows.length === 0) {
+      // Create booking_addon relationship
+      await client.query(
+        `INSERT INTO booking_addon (
+          addon_id, booking_id, legacy_id
+        ) VALUES ($1, $2, $3)`,
+        [addonId, bookingId, item.baId]
+      );
+    }
+  } catch (error) {
+    console.error("Error processing addon:", error);
+    throw error;
+  }
+}
+
+async function insertBookingStatusHistory(
+  bookingId: number,
+  status: string,
+  time: any,
+  client: any
+) {
+  if (!time || time === "0000-00-00 00:00:00") return;
+
+  await client.query(
+    `INSERT INTO status_history (
+      booking_id,
+      status,
+      time,
+      created_at
+    ) VALUES ($1, $2, $3, $3)
+    ON CONFLICT (booking_id, status)
+    DO UPDATE SET
+      time = EXCLUDED.time,
+      created_at = EXCLUDED.created_at`,
+    [bookingId, status, time]
   );
 }

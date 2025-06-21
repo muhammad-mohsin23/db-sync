@@ -6,10 +6,14 @@ import {
   insertBookingAddOns,
   insertBookingFeedback,
   insertBookingServiceDetails,
+  insertOneTimeScheduleWindow,
+  insertRecurringScheduleItem,
+  insertRepeatBookings,
   updateBooking,
   updateBookingAddOn,
   updateBookingFeedback,
   updateBookingServiceDetails,
+  updateOneTimeScheduleWindow,
 } from "../services/booking";
 import {
   deleteCustomerInAccount,
@@ -22,7 +26,7 @@ import {
   updateInvoice,
   updateInvoiceItem,
 } from "../services/invoice";
-import { insertPropertyUnit } from "../services/unit";
+import { insertPropertyUnit, insertUnitResident } from "../services/unit";
 const EventEmitter = require("node:events");
 
 const eventEmitter = new EventEmitter();
@@ -44,7 +48,7 @@ export async function fetchData() {
       FROM change_log
       WHERE 
    action_type = 'INSERT'
-          AND table_name in ('bookings', 'customer')
+          AND table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows',recurringschedules)
        AND deleted_at IS NULL;`)) as any;
     const total = rowCount[0]?.count;
     for (let i = 0; i <= total / createBatchSize; i++) {
@@ -67,7 +71,7 @@ export async function fetchData() {
         `SELECT *
             FROM change_log
             WHERE
-         table_name in ('bookings', 'customer')
+         table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules')
         AND action_type ='INSERT'
              AND deleted_at IS NULL
             ORDER BY created_at limit ${batchSize} offset ${
@@ -180,7 +184,7 @@ export async function fetchUpdateData() {
       FROM change_log
       WHERE 
        action_type ='UPDATED'
-          AND table_name in ('bookings', 'bookingservicedetails', 'customer' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
+          AND table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
        AND deleted_at IS NULL;`)) as any;
     const total = rowCount[0]?.count;
     for (let i = 0; i <= total / updateBatchSize; i++) {
@@ -188,7 +192,7 @@ export async function fetchUpdateData() {
         `SELECT *
             FROM change_log
             WHERE
-         table_name in ('bookings', 'bookingservicedetails', 'customer' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
+         table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
         AND action_type = 'UPDATE'
              AND deleted_at IS NULL
             ORDER BY created_at limit ${batchSize} offset ${
@@ -391,6 +395,10 @@ const insertFunctionsByTablename: Record<string, Function> = {
   invoices: insertInvoice,
   invoicelineitems: insertInvoiceItem,
   units: insertPropertyUnit,
+  unitresidents: insertUnitResident,
+  repeatbookings: insertRepeatBookings,
+  onetimeschedulebookingwindows: insertOneTimeScheduleWindow,
+  recurringschedules: insertRecurringScheduleItem,
 };
 
 const updateFunctionsByTablename: Record<string, Function> = {
@@ -401,6 +409,7 @@ const updateFunctionsByTablename: Record<string, Function> = {
   bookingservicedetails: updateBookingServiceDetails,
   invoices: updateInvoice,
   invoicelineitems: updateInvoiceItem,
+  onetimeschedulebookingwindows: updateOneTimeScheduleWindow,
 };
 const deleteFunctionsByTablename: Record<string, Function> = {
   customers: deleteCustomerInAccount,

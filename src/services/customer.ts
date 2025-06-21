@@ -1,10 +1,21 @@
 import { pgPool } from "../database/database.service";
-import bcrypt from "bcrypt";
 
 export async function insertCustomerToAccount(item: any, mysqlConn: any) {
   const client = await pgPool.connect();
   try {
     await client.query("BEGIN");
+
+    const existingRes = await client.query(
+      `SELECT id FROM account WHERE legacy_id = $1`,
+      [item.Id]
+    );
+    const customerExists = existingRes.rows[0];
+
+    if (!customerExists) {
+      console.log(`Account already exists for customer ${item.CustomerId}`);
+      await client.query("ROLLBACK");
+      throw new Error("Account already exists for customer");
+    }
     // Insert into account
     const insertAccountRes = await client.query(
       `INSERT INTO account (
@@ -25,7 +36,7 @@ $7, $8, $9, $10, $11, $12) RETURNING id`,
         item.spmZipCode,
         item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT",
         item.CustomerId,
-        new Date(),
+        item.UpdatedAt ?? new Date(),
       ]
     );
     const accountId = insertAccountRes.rows[0].id;
@@ -44,12 +55,11 @@ $1, $2, $3, $4, $5
         new Date(),
       ]
     );
-    const hashedPassword = await bcrypt.hash(item.Password, 10);
+    // Insert into account_credential
     const authInfo = JSON.stringify({
       hasher: "bcrypt",
-      password: hashedPassword,
+      password: item.Password,
     });
-    // Insert into account_credential
     await client.query(
       `INSERT INTO account_credential (
 account_id, provider, provider_key, auth_info,updated_at
@@ -131,10 +141,10 @@ updated_at = $4
 deleted_at = $5
 WHERE account_id = $6`,
       [
-        item.BillingAddress || null,
-        item.City || null,
-        item.State || null,
-        new Date(),
+        item?.BillingAddress || null,
+        item?.City || null,
+        item?.State || null,
+        item.UpdatedAt ?? new Date(),
         item.DeletedAt ?? null,
         accountId,
       ]
@@ -322,6 +332,108 @@ export async function getAccountIdByLegacyId(legacyId: number) {
   } catch (err) {
     console.error("❌ Error fetching account by legacy ID:", err);
     return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function insertRunnerPreference(item: any, mysqlConn: any) {
+  const client = await pgPool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const [runnerRows] = await mysqlConn.execute(
+      `SELECT * FROM serviceproviderrunners WHERE Id = ?`,
+      [item.ServiceProviderRunnerId]
+    );
+
+    if (!runnerRows || runnerRows.length === 0) {
+      throw new Error(
+        `MySQL: Runner with ID ${item.ServiceProviderRunnerId} not found.`
+      );
+    }
+
+    const runner = runnerRows[0];
+    const runnerUserId = runner.UserId;
+
+    // Find account ID by legacy customer ID
+    const accountRes = await client.query(
+      "SELECT id FROM account WHERE legacy_id = $1 and account_type ='RESIDENT' ",
+      [item.CustomerId]
+    );
+    if (accountRes.rows.length === 0) {
+      throw new Error(`Account with legacy_id ${item.CustomerId} not found.`);
+    }
+    const accountId = accountRes.rows[0].id;
+
+    // Find service provider runner ID by legacy ID
+    const runnerRes = await client.query(
+      "SELECT id,company_id FROM account WHERE legacy_id = $1 and account_type='PRO' ",
+      [item.runnerUserId]
+    );
+    if (runnerRes.rows.length === 0) {
+      throw new Error(
+        `Runner with legacy_id ${item.ServiceProviderRunnerId} not found.`
+      );
+    }
+    const runnerId = runnerRes.rows[0].id;
+
+    // Insert or update runner preference
+    await client.query(
+      `INSERT INTO service_pro_preference (
+        legacy_id, resident_id, service_pro_id, service_provider_id, preference
+ updated_at
+      ) VALUES ($1, $2, $3, $4, $5,$6)
+           ON CONFLICT ON CONSTRAINT serivce_pro_preference_pk DO UPDATE SET
+        preference_type = EXCLUDED.preference_type,
+      `,
+      [
+        item.Id,
+        accountId,
+        runnerId,
+        runnerRes.rows[0].company_id,
+        item.PreferenceType,
+        new Date(),
+      ]
+    );
+
+    await client.query("COMMIT");
+    console.log(`✅ Inserted/Updated runner preference ${item.Id}`);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error(`❌ Error inserting runner preference ${item.Id}:`, error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteRunnerPreference(item: any) {
+  const client = await pgPool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const deleteRes = await client.query(
+      `DELETE FROM service_pro_preference WHERE legacy_id = $1`,
+      [item.Id]
+    );
+
+    if (deleteRes.rowCount === 0) {
+      console.warn(
+        ` No service_pro_preference found with legacy_id ${item.Id}`
+      );
+    } else {
+      console.log(
+        ` Deleted service_pro_preference with legacy_id ${item.Id}`
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw new Error("Failed to delete runner preference");
   } finally {
     client.release();
   }
