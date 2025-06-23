@@ -74,7 +74,7 @@ export async function fetchData() {
          table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules')
         AND action_type ='INSERT'
              AND deleted_at IS NULL
-            ORDER BY created_at limit ${batchSize} offset ${
+            ORDER BY created_at limit ${createBatchSize} offset ${
           createBatchSize * i
         };`
 
@@ -195,7 +195,7 @@ export async function fetchUpdateData() {
          table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
         AND action_type = 'UPDATE'
              AND deleted_at IS NULL
-            ORDER BY created_at limit ${batchSize} offset ${
+            ORDER BY created_at limit ${updateBatchSize} offset ${
           updateBatchSize * i
         };`
       );
