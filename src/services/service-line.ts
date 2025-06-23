@@ -142,7 +142,7 @@ export async function updateService(
             description = $2,
             slug = $3,
             service_line_id = $4,
-            updated_at = $5
+            updated_at = $5,
             deleted_at = $6
           WHERE legacy_id = $7`,
       [
@@ -194,7 +194,7 @@ export async function updateServiceLine(
         name = $1,
         description = $2,
         slug = $3,
-        updated_at = $4
+        updated_at = $4,
         deleted_at = $5
        WHERE legacy_id = $6`,
       [

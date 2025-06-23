@@ -5,6 +5,15 @@ export async function insertCustomerToAccount(item: any, mysqlConn: any) {
   try {
     await client.query("BEGIN");
 
+    let userName = null;
+    const usernameCheck = await client.query(
+      `SELECT id FROM account WHERE username = $1 AND account_type = 'RESIDENT'`,
+      [item.Email]
+    );
+    if (usernameCheck.rows.length > 0) {
+      userName = `${item.CustomerId}-duplicate${item.Email}`;
+    }
+
     const existingRes = await client.query(
       `SELECT id FROM account WHERE legacy_id = $1`,
       [item.Id]
@@ -29,7 +38,7 @@ $7, $8, $9, $10, $11, $12) RETURNING id`,
         item.LastName || null,
         item.Email,
         `RN-${item.CustomerId}`,
-        item.Email,
+        userName ?? item.Email,
         item.MobilePhone,
         null,
         "ACTIVE",
@@ -115,7 +124,7 @@ phone = $4,
 zip_code = $5,
 status = $6,
 account_type = $7,
-updated_at = $8
+updated_at = $8,
 deleted_at=$9
 WHERE id = $10`,
       [
@@ -137,7 +146,7 @@ WHERE id = $10`,
 address = $1,
 city = $2,
 state = $3,
-updated_at = $4
+updated_at = $4,
 deleted_at = $5
 WHERE account_id = $6`,
       [
@@ -157,7 +166,7 @@ WHERE account_id = $6`,
     await client.query(
       `UPDATE account_credential SET
 auth_info = $1,
-updated_at = $2
+updated_at = $2,
 deleted_at = $3
 WHERE account_id = $4 AND provider = 'PASSWORD'`,
       [authInfo, new Date(), item.deletedAt ?? null, accountId]
@@ -425,9 +434,7 @@ export async function deleteRunnerPreference(item: any) {
         ` No service_pro_preference found with legacy_id ${item.Id}`
       );
     } else {
-      console.log(
-        ` Deleted service_pro_preference with legacy_id ${item.Id}`
-      );
+      console.log(` Deleted service_pro_preference with legacy_id ${item.Id}`);
     }
 
     await client.query("COMMIT");

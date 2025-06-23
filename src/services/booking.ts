@@ -1436,7 +1436,7 @@ export async function updateBookingTimeWindow(
            start_time = $2,
            end_time = $3,
            service_line_id = $4,
-           updated_at = NOW()
+           updated_at = NOW(),
            deleted_at = $5
        WHERE legacy_id = $5`,
       [
