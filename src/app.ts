@@ -2,9 +2,13 @@ import express, { Request, Response } from "express";
 import { fetchData, fetchUpdateData } from "./cron/cron.service";
 import cron from "node-cron";
 import { checkPostgresConnection } from "./database/database.service";
+import { join } from "path";
 
 const app = express();
 const port: number = 3001;
+
+app.use("error-logs", express.static(join(__dirname, "..", "error-logs")));
+app.use("success-logs", express.static(join(__dirname, "..", "success-logs")));
 
 app.get("/", async (req: Request, res: Response) => {
   const { action } = req.query;
