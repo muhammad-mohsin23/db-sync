@@ -294,8 +294,8 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
         item.PaymentTokenId ?? null,
         unitId,
         item.Notes ?? null,
-        new Date(item.UpdateAt) ?? new Date(),
-        new Date(item.Deleted_at) ?? null,
+        item.UpdateAt ?? new Date(),
+        item.Deleted_at,
         item.Id,
       ]
     );
@@ -382,7 +382,7 @@ export async function insertBookingAddOns(item: any, mysqlConn: any) {
   } catch (err: any) {
     await client.query("ROLLBACK");
     console.error("Error inserting booking add-on:", err);
-    throw new Error(`Failed to insert booking: ${err?.message}`);
+    throw new Error(`Failed to insert booking addons: ${err?.message}`);
   } finally {
     client.release();
   }
@@ -410,7 +410,7 @@ export async function updateBookingAddOn(item: any, mysqlConn: any, id?: any) {
 
     // Check if the record exists
     const { rows: existingRows } = await client.query(
-      `SELECT id FROM booking_addon WHERE legacy_id = $1`,
+      `SELECT * FROM booking_addon WHERE legacy_id = $1`,
       [item.Id]
     );
 
@@ -445,7 +445,7 @@ export async function updateBookingAddOn(item: any, mysqlConn: any, id?: any) {
       `Error updating booking add-on (legacy_id: ${item.Id}):`,
       err
     );
-    throw new Error(`Failed to insert booking: ${err?.message}`);
+    throw new Error(`Failed to update booking addons: ${err?.message}`);
   } finally {
     client.release();
   }
@@ -558,7 +558,7 @@ export async function insertBookingActivity(item: any, mysqlConn: any) {
     }
   } catch (err: any) {
     console.error("❌ Error inserting status history:", err);
-    throw new Error(`Failed to insert booking: ${err?.message}`);
+    throw new Error(`Failed to insert booking Activity: ${err?.message}`);
   } finally {
     if (client) {
       client.release();
@@ -1091,7 +1091,7 @@ export async function updateBookingServiceDetails(
         );
       } else {
         await client.query(
-          `INSERT INTO status_history (booking_id, status, time, created_at,leagacy_id)
+          `INSERT INTO status_history (booking_id, status, time, created_at,legacy_id)
            VALUES ($1, $2, $3, $4, $5)`,
           [
             bookingId,
