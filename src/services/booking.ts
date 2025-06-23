@@ -707,6 +707,18 @@ export async function insertBookingFeedback(feedbackData: any, mysqlConn: any) {
       // return;
     }
 
+    const existing = await client.query(
+      `SELECT id FROM booking_feedback WHERE booking_id = $1 AND account_id = $2`,
+      [bookingId, accountId]
+    );
+
+    if (existing.rows.length > 0) {
+      await client.query("ROLLBACK");
+      throw new Error(
+        `Feedback already exists for booking_id ${bookingId} and account_id ${accountId}.`
+      );
+    }
+
     await client.query(
       `INSERT INTO booking_feedback (
         booking_id, account_id, rating, comment, updated_at
