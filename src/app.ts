@@ -47,6 +47,7 @@ app.listen(port, async () => {
   try {
     checkPostgresConnection();
     console.log(`Server is running on http://localhost:${port}`);
+    console.log("update cron set for every 10 and 40 minute");
   } catch (err) {
     console.error("Error during fetchData execution:", err);
   }
