@@ -84,7 +84,6 @@ export async function fetchData() {
          table_name in ('bookings','bookingfeedback', 'customers','units','unitresidents')
         AND action_type ='INSERT'
              AND deleted_at IS NULL
-             AND Id =174174355           
             ORDER BY created_at limit ${createBatchSize} offset ${
           createBatchSize * i
         };`
