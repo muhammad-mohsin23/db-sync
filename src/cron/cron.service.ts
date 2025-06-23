@@ -15,6 +15,7 @@ import {
   updateBookingServiceDetails,
   updateOneTimeScheduleWindow,
 } from "../services/booking";
+import { insertCreditsToCoupon } from "../services/coupon";
 import {
   deleteCustomerInAccount,
   insertCustomerToAccount,
@@ -44,63 +45,21 @@ export async function fetchData() {
   const mysqlConn = await mysqlConnection();
   const createBatchSize = batchSize.create;
   try {
+    const whereCondition = `action_type = 'INSERT'
+          AND table_name in ('bookings', 'bookingfeedback','customers','units','unitresidents','credits')
+       AND deleted_at IS NULL`;
     const [rowCount] = (await mysqlConn.execute(`SELECT count(*) as count
-        FROM change_log
-        WHERE
-     action_type = 'INSERT'
-            AND table_name in ('bookings', 'bookingfeedback','customers','units','unitresidents')
-         AND deleted_at IS NULL;`)) as any;
-
+            FROM change_log
+            WHERE ${whereCondition};
+            `)) as any;
     const total = rowCount[0]?.count;
     for (let i = 0; i <= total / createBatchSize; i++) {
       const [rows] = await mysqlConn.execute(
-        // `SELECT * FROM change_log
-        // WHERE created_at >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:00')  - INTERVAL 3 MINUTE and created_at < DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:00')`
-        // `SELECT * FROM change_log WHERE deleted_at is null order by Id`
-        // `SELECT * FROM change_log
-        // WHERE created_at >= ${new Date().toISOString()} - INTERVAL 3 MINUTE and deleted_at is null`
-
-        // `SELECT *
-        //     FROM change_log
-        //     WHERE
-        //     created_at >= '2025-06-12T00:00:00.000Z'
-        // AND created_at < '2025-06-13T00:00:00.000Z'
-        // AND table_name in ('bookings', 'bookingservicedetails', 'customer' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
-        //      AND deleted_at IS NULL
-        //     ORDER BY  limit ${batchSize} offset ${batchSize * i};`
-
-        // `SELECT *
-        //     FROM change_log
-        //     WHERE
-        //  table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules')
-        // AND action_type ='INSERT'
-        //      AND deleted_at IS NULL
-        //     ORDER BY created_at limit ${createBatchSize} offset ${
-        //   createBatchSize * i
-        // };`
-        `SELECT *
-            FROM change_log
-            WHERE
-         table_name in ('bookings','bookingfeedback', 'customers','units','unitresidents')
-        AND action_type ='INSERT'
-             AND deleted_at IS NULL
+        `SELECT * FROM change_log
+            WHERE ${whereCondition}
             ORDER BY created_at limit ${createBatchSize} offset ${
           createBatchSize * i
         };`
-
-        //   `SELECT *
-        // FROM change_log
-        // WHERE
-        // record_id='1414464'
-        //  AND deleted_at IS NULL
-        // ORDER BY Id limit ${batchSize} offset ${batchSize * i};`
-        //       `SELECT *
-        // FROM ebdb.change_log
-        // WHERE table_name = 'invoices' AND action_type ='UPDATE' AND record_id='1463122'`
-
-        //       `SELECT *
-        // FROM ebdb.change_log
-        // WHERE table_name = 'bookingservicedetails' AND action_type ='UPDATE' AND record_id='1356041' order by id `
       );
       console.log(`Fetched Rows: `, rows);
       // const [result] = await mysqlConn.execute(
@@ -190,21 +149,19 @@ export async function fetchUpdateData() {
   const updateBatchSize = batchSize.update;
   const mysqlConn = await mysqlConnection();
   try {
+    const whereCondition = `action_type ='UPDATE'
+          AND table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
+       AND deleted_at IS NULL`;
+
     const [rowCount] = (await mysqlConn.execute(`SELECT count(*) as count
       FROM change_log
-      WHERE 
-       action_type ='UPDATED'
-          AND table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
-       AND deleted_at IS NULL;`)) as any;
+      WHERE ${whereCondition};`)) as any;
     const total = rowCount[0]?.count;
     for (let i = 0; i <= total / updateBatchSize; i++) {
       const [rows] = await mysqlConn.execute(
         `SELECT *
             FROM change_log
-            WHERE
-         table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
-        AND action_type = 'UPDATE'
-             AND deleted_at IS NULL
+            WHERE ${whereCondition}
             ORDER BY created_at limit ${updateBatchSize} offset ${
           updateBatchSize * i
         };`
@@ -428,6 +385,7 @@ const insertFunctionsByTablename: Record<string, Function> = {
   repeatbookings: insertRepeatBookings,
   onetimeschedulebookingwindows: insertOneTimeScheduleWindow,
   recurringschedules: insertRecurringScheduleItem,
+  credits: insertCreditsToCoupon,
 };
 
 const updateFunctionsByTablename: Record<string, Function> = {
