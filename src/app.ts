@@ -9,6 +9,7 @@ const port: number = 3001;
 
 app.use("error-logs", express.static(join(__dirname, "..", "error-logs")));
 app.use("success-logs", express.static(join(__dirname, "..", "success-logs")));
+console.log(join(__dirname, ".."));
 
 app.get("/", async (req: Request, res: Response) => {
   const { action } = req.query;
