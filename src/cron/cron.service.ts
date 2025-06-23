@@ -45,11 +45,12 @@ export async function fetchData() {
   const createBatchSize = batchSize.create;
   try {
     const [rowCount] = (await mysqlConn.execute(`SELECT count(*) as count
-      FROM change_log
-      WHERE 
-   action_type = 'INSERT'
-          AND table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules')
-       AND deleted_at IS NULL;`)) as any;
+        FROM change_log
+        WHERE
+     action_type = 'INSERT'
+            AND table_name in ('bookings', 'bookingfeedback','customers','units','unitresidents')
+         AND deleted_at IS NULL;`)) as any;
+
     const total = rowCount[0]?.count;
     for (let i = 0; i <= total / createBatchSize; i++) {
       const [rows] = await mysqlConn.execute(
@@ -68,12 +69,22 @@ export async function fetchData() {
         //      AND deleted_at IS NULL
         //     ORDER BY  limit ${batchSize} offset ${batchSize * i};`
 
+        // `SELECT *
+        //     FROM change_log
+        //     WHERE
+        //  table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules')
+        // AND action_type ='INSERT'
+        //      AND deleted_at IS NULL
+        //     ORDER BY created_at limit ${createBatchSize} offset ${
+        //   createBatchSize * i
+        // };`
         `SELECT *
             FROM change_log
             WHERE
-         table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules')
+         table_name in ('bookings','bookingfeedback', 'customers','units','unitresidents')
         AND action_type ='INSERT'
              AND deleted_at IS NULL
+             AND Id =174174355           
             ORDER BY created_at limit ${createBatchSize} offset ${
           createBatchSize * i
         };`

@@ -1748,12 +1748,11 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
     LEFT JOIN serviceprovidermanagers spm ON spm.ServiceProviderManagerId = bsd.ServiceProviderManagerId
     LEFT JOIN serviceproviderrunners spr ON spr.ServiceProviderRunnerId = bsd.ServiceProviderRunnerId
     LEFT JOIN users us ON us.Id = spr.UserId
-    WHERE ac.BelongsToMarket = ?
-      AND b.Id = ?
+    WHERE b.Id = ?
       AND b.DeletedAt IS NULL
       AND ur.DeletedAt IS NULL;
   `,
-      [marketId, bookingData.Id]
+      [bookingData.Id]
     );
 
     if (!bookingRows || bookingRows.length === 0) {
@@ -1847,6 +1846,7 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
         serviceId,
         bookingDate,
         // Default status
+        status,
         item.Notes || null,
         item.PaymentTokenId || null,
         unitId,
@@ -2080,7 +2080,7 @@ async function getOrCreateFloorPlan(
       item.bathrooms,
       item.fpId,
       propertyId,
-      item.CreatedAt ? new Date(item.CreatedAt) : new Date(),
+      item.CreatedAt ?? new Date(),
       new Date(),
     ]
   );
@@ -2114,8 +2114,8 @@ async function getOrCreateUnit(
       floorPlanId,
       item.unit_number,
       item.building_number,
-      item.unitId,
-      item.CreatedAt ? new Date(item.CreatedAt) : new Date(),
+      item.unitID,
+      item.CreatedAt ?? new Date(),
       new Date(),
     ]
   );
@@ -2161,6 +2161,18 @@ async function getOrCreateService(item: any, client: any) {
 
 async function createTimeWindow(item: any, bookingId: number, client: any) {
   const timeRangeName = classifyTimeRange(item.Start, item.End);
+
+  const existing = await client.query(
+    `SELECT id FROM time_window WHERE legacy_id = $1`,
+    [item.Id]
+  );
+
+  if (existing.rows.length > 0) {
+    console.log(
+      `⚠️ Time window with legacy_id ${item.Id} already exists. Skipping insert.`
+    );
+    return existing.rows[0].id; // Return existing ID if needed
+  }
 
   const result = await client.query(
     `INSERT INTO time_window (
@@ -2251,7 +2263,7 @@ async function processAddon(
 
     // Check if addon exists
     const addonResult = await client.query(
-      `SELECT id FROM addon WHERE legacy_id = $1`,
+      `SELECT * FROM addon WHERE legacy_id = $1`,
       [item.addonId]
     );
 
@@ -2297,7 +2309,7 @@ async function processAddon(
 
     // Check if booking_addon relationship exists
     const bookingAddonResult = await client.query(
-      `SELECT id FROM booking_addon 
+      `SELECT * FROM booking_addon 
        WHERE addon_id = $1 AND booking_id = $2`,
       [addonId, bookingId]
     );
