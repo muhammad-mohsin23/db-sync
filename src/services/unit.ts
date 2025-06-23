@@ -48,8 +48,7 @@ export async function insertPropertyUnit(item: any, mysqlConn: any) {
            number,
            building_number,
            legacy_id,
-           updated_at,
-           
+           updated_at
          ) VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         propertyId,
