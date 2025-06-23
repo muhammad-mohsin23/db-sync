@@ -205,6 +205,25 @@ export async function fetchUpdateData() {
         try {
           const newData = row.new_data;
           console.log("New Data:", newData);
+          const toMatchOldData = { ...row.old_data };
+          const toMatchNewData = { ...row.new_data };
+          delete toMatchOldData["updated_at"];
+          delete toMatchOldData["updatedAt"];
+          delete toMatchOldData["UpdatedAt"];
+          delete toMatchNewData["updated_at"];
+          delete toMatchNewData["updatedAt"];
+          delete toMatchNewData["UpdatedAt"];
+          if (
+            JSON.stringify(toMatchOldData) === JSON.stringify(toMatchNewData)
+          ) {
+            eventEmitter.emit("log-success", {
+              ...row,
+              message: "nothing to update",
+            });
+            toDelete.push(row.Id);
+            continue;
+          }
+
           if (row.table_name in updateFunctionsByTablename) {
             await updateFunctionsByTablename[row.table_name]?.(
               newData,
