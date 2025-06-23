@@ -41,14 +41,14 @@ app.get("/", async (req: Request, res: Response) => {
 //   }
 // });
 
-// cron.schedule("0,30 * * * *", async () => {
-//   console.log("⏰ Running scheduled fetchData at", new Date().toISOString());
-//   try {
-//     await fetchData();
-//   } catch (error) {
-//     console.error("Scheduled fetchData failed:", error);
-//   }
-// });
+cron.schedule("0,30 * * * *", async () => {
+  console.log("⏰ Running scheduled fetchData at", new Date().toISOString());
+  try {
+    await fetchData();
+  } catch (error) {
+    console.error("Scheduled fetchData failed:", error);
+  }
+});
 
 cron.schedule("10,40 * * * *", async () => {
   console.log(
