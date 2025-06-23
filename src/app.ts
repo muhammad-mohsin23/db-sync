@@ -6,7 +6,21 @@ import { checkPostgresConnection } from "./database/database.service";
 const app = express();
 const port: number = 3001;
 
-app.get("/", (req: Request, res: Response) => {
+app.get("/", async (req: Request, res: Response) => {
+  const { action } = req.query;
+  if (action === "update") {
+    try {
+      await fetchUpdateData();
+    } catch (error) {
+      console.error("Scheduled fetchUpdateData failed:", error);
+    }
+  } else if (action === "insert") {
+    try {
+      await fetchData();
+    } catch (error) {
+      console.error("Scheduled fetchData failed:", error);
+    }
+  }
   res.send("Hello World!");
 });
 
@@ -47,6 +61,7 @@ app.listen(port, async () => {
   try {
     checkPostgresConnection();
     console.log(`Server is running on http://localhost:${port}`);
+    console.log("update cron set for every 10 and 40 minute");
   } catch (err) {
     console.error("Error during fetchData execution:", err);
   }
