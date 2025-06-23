@@ -48,7 +48,7 @@ export async function fetchData() {
       FROM change_log
       WHERE 
    action_type = 'INSERT'
-          AND table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows',recurringschedules)
+          AND table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules')
        AND deleted_at IS NULL;`)) as any;
     const total = rowCount[0]?.count;
     for (let i = 0; i <= total / createBatchSize; i++) {
