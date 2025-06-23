@@ -46,7 +46,7 @@ export async function fetchData() {
   const createBatchSize = batchSize.create;
   try {
     const whereCondition = `action_type = 'INSERT'
-          AND table_name in ('bookings', 'customers','units','unitresidents','repeatbookings','onetimeschedulebookingwindows','recurringschedules','credits')
+          AND table_name in ('bookings', 'bookingfeedback','customers','units','unitresidents','credits')
        AND deleted_at IS NULL`;
     const [rowCount] = (await mysqlConn.execute(`SELECT count(*) as count
             FROM change_log

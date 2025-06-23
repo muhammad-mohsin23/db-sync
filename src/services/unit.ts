@@ -5,6 +5,17 @@ export async function insertPropertyUnit(item: any, mysqlConn: any) {
   try {
     await client.query("BEGIN");
 
+    const existingUnit = await client.query(
+      `SELECT id FROM unit WHERE legacy_id = $1`,
+      [item.unitID]
+    );
+    if (existingUnit.rows.length > 0) {
+      await client.query("ROLLBACK");
+      throw new Error(
+        `Unit with legacy_id ${item.unitID} already exists. Skipping insert.`
+      );
+    }
+
     // Check if property exists
     const propertyRes = await client.query(
       "SELECT id FROM property WHERE legacy_id = $1",
