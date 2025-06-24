@@ -3,6 +3,8 @@ import { fetchData, fetchUpdateData } from "./cron/cron.service";
 import cron from "node-cron";
 import { checkPostgresConnection } from "./database/database.service";
 import { join } from "path";
+import { closeSnowflakeConnection } from "./database/snowflake.service";
+import { syncBraintreeTransactions } from "./services/snowflake.service";
 
 const app = express();
 const port: number = 3001;
@@ -10,6 +12,16 @@ const port: number = 3001;
 app.use("/error-logs", express.static(join(__dirname, "..", "error-logs")));
 app.use("/success-logs", express.static(join(__dirname, "..", "success-logs")));
 console.log(join(__dirname, ".."));
+
+process.on("SIGINT", async () => {
+  await closeSnowflakeConnection();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  await closeSnowflakeConnection();
+  process.exit(0);
+});
 
 app.get("/", async (req: Request, res: Response) => {
   const { action } = req.query;
@@ -60,6 +72,12 @@ cron.schedule("10,40 * * * *", async () => {
   } catch (error) {
     console.error("Scheduled fetchUpdateData failed:", error);
   }
+});
+
+app.get("/braintree-transaction-sync", async (req: Request, res: Response) => {
+  const { whereClause } = req.query;
+  await syncBraintreeTransactions(whereClause as string);
+  res.send("Transactions Synced!");
 });
 
 app.listen(port, async () => {
