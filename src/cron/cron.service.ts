@@ -15,7 +15,10 @@ import {
   updateBookingServiceDetails,
   updateOneTimeScheduleWindow,
 } from "../services/booking";
-import { insertCreditsToCoupon } from "../services/coupon";
+import {
+  insertCreditsToCoupon,
+  updateCreditsToCoupon,
+} from "../services/coupon";
 import {
   deleteCustomerInAccount,
   insertCustomerToAccount,
@@ -150,7 +153,7 @@ export async function fetchUpdateData() {
   const mysqlConn = await mysqlConnection();
   try {
     const whereCondition = `action_type ='UPDATE'
-          AND table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems')
+          AND table_name in ('bookings', 'bookingservicedetails', 'customers' ,'bookingfeedback', 'bookingaddons', 'bookingactivity','invoices','invoicelineitems','credits')
        AND deleted_at IS NULL`;
 
     const [rowCount] = (await mysqlConn.execute(`SELECT count(*) as count
@@ -397,6 +400,7 @@ const updateFunctionsByTablename: Record<string, Function> = {
   invoices: updateInvoice,
   invoicelineitems: updateInvoiceItem,
   onetimeschedulebookingwindows: updateOneTimeScheduleWindow,
+  credits: updateCreditsToCoupon,
 };
 const deleteFunctionsByTablename: Record<string, Function> = {
   customers: deleteCustomerInAccount,
