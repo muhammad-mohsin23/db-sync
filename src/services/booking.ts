@@ -346,7 +346,7 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
       await client.query(
         `UPDATE booking SET
           redo_booking_id = $1,
-          redo_note = $2,
+          redo_note = $2
         WHERE id = $1`,
         [bookingId, item?.note]
       );
