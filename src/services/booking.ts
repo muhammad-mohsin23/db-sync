@@ -1340,6 +1340,13 @@ export async function updateBookingServiceDetails(
           const proAccountId = proAccountRes.rows?.[0]?.id;
           if (proAccountId) {
             await client.query(
+              `UPDATE dispatch_pro
+               SET deleted_at = NOW()
+               WHERE dispatch_id = $1 AND deleted_at IS NULL`,
+              [dispatchId]
+            );
+
+            await client.query(
               `INSERT INTO dispatch_pro (dispatch_id, account_id, created_at, updated_at)
                VALUES ($1, $2, $3, NOW())
                ON CONFLICT (dispatch_id, account_id)
