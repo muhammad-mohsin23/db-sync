@@ -315,11 +315,11 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
         const startTime =
           item.Start == "0000-00-00 00:00:00" || !item.Start
             ? "1970-01-01 00:00:00.000"
-            : item.Start;
+            : item.Start?.replace("+00:00", "");
         const endTime =
           item.End === "0000-00-00 00:00:00" || !item.End
             ? "1970-01-01 00:00:00.000"
-            : item.End;
+            : item.End?.replace("+00:00", "");
         await client.query(
           `UPDATE time_window SET
             start_time = $1,
@@ -1453,12 +1453,12 @@ export async function updateBookingTimeWindow(
       timeWindowData.StartTime == "0000-00-00 00:00:00" ||
       !timeWindowData.StartTime
         ? "1970-01-01 00:00:00.000"
-        : timeWindowData.StartTime;
+        : timeWindowData.StartTime?.replace("+00:00", "");
     const endTime =
       timeWindowData.EndTime === "0000-00-00 00:00:00" ||
       !timeWindowData.EndTime
         ? "1970-01-01 00:00:00.000"
-        : timeWindowData.EndTime;
+        : timeWindowData.EndTime?.replace("+00:00", "");
     // Update the time_window in PostgreSQL
     await client.query(
       `UPDATE time_window
@@ -2192,6 +2192,15 @@ async function createTimeWindow(item: any, bookingId: number, client: any) {
     return existing.rows[0].id; // Return existing ID if needed
   }
 
+  const startTime =
+    item.Start == "0000-00-00 00:00:00" || !item.Start
+      ? "1970-01-01 00:00:00.000"
+      : item.Start?.replace("+00:00", "");
+  const endTime =
+    item.End === "0000-00-00 00:00:00" || !item.End
+      ? "1970-01-01 00:00:00.000"
+      : item.End?.replace("+00:00", "");
+
   const result = await client.query(
     `INSERT INTO time_window (
       name, start_time, end_time, legacy_id, service_line_id,
@@ -2200,8 +2209,8 @@ async function createTimeWindow(item: any, bookingId: number, client: any) {
     RETURNING id`,
     [
       timeRangeName,
-      item.Start ? new Date(item.Start) : new Date(), // need to change, look in update booking
-      item.End ? new Date(item.End) : new Date(),
+      startTime,
+      endTime,
       item.Id,
       getServiceLineUuid(item.msTitle),
       item.CreatedAt ? new Date(item.CreatedAt) : new Date(),
