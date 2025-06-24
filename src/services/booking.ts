@@ -312,6 +312,14 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
 
         const name = classifyTimeRange(item.Start, item.End);
 
+        const startTime =
+          item.Start == "0000-00-00 00:00:00" || !item.Start
+            ? "1970-01-01 00:00:00.000"
+            : item.Start;
+        const endTime =
+          item.End === "0000-00-00 00:00:00" || !item.End
+            ? "1970-01-01 00:00:00.000"
+            : item.End;
         await client.query(
           `UPDATE time_window SET
             start_time = $1,
@@ -319,7 +327,7 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
             name=$3,
             updated_at = $4
           WHERE id = $5`,
-          [item.Start, item.End, name, new Date(), timeWindowId]
+          [startTime, endTime, name, new Date(), timeWindowId]
         );
 
         console.log(`🕒 TimeWindow for booking ${item.Id} updated.`);
@@ -1370,7 +1378,7 @@ export async function insertBookingTimeWindow(
       [
         timeWindowData.Id,
         timeWindowData.DayOfWeek,
-        timeWindowData.StartTime,
+        timeWindowData.StartTime, // need to change, look in update booking
         timeWindowData.EndTime,
         pgServiceLineId,
         timeWindowData.CreatedAt,
@@ -1437,6 +1445,16 @@ export async function updateBookingTimeWindow(
 
     const pgServiceLineId = pgServiceLineResult.rows[0].id;
 
+    const startTime =
+      timeWindowData.StartTime == "0000-00-00 00:00:00" ||
+      !timeWindowData.StartTime
+        ? "1970-01-01 00:00:00.000"
+        : timeWindowData.StartTime;
+    const endTime =
+      timeWindowData.EndTime === "0000-00-00 00:00:00" ||
+      !timeWindowData.EndTime
+        ? "1970-01-01 00:00:00.000"
+        : timeWindowData.EndTime;
     // Update the time_window in PostgreSQL
     await client.query(
       `UPDATE time_window
@@ -1449,8 +1467,8 @@ export async function updateBookingTimeWindow(
        WHERE legacy_id = $5`,
       [
         timeWindowData.DayOfWeek,
-        timeWindowData.StartTime,
-        timeWindowData.EndTime,
+        startTime,
+        endTime,
         pgServiceLineId,
         timeWindowData.Id,
         timeWindowData.deleted_at ?? null,
@@ -2177,7 +2195,7 @@ async function createTimeWindow(item: any, bookingId: number, client: any) {
     RETURNING id`,
     [
       timeRangeName,
-      item.Start ? new Date(item.Start) : new Date(),
+      item.Start ? new Date(item.Start) : new Date(), // need to change, look in update booking
       item.End ? new Date(item.End) : new Date(),
       item.Id,
       getServiceLineUuid(item.msTitle),
