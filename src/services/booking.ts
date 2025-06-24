@@ -334,6 +334,24 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
       }
     }
 
+    if (item.Redo && Number(item.Redo) > 0) {
+      // Delete specific statuses
+      await client.query(
+        `DELETE FROM status_history
+         WHERE booking_id = $1
+         AND status IN ('ON_THE_WAY', 'CLOCK_IN', 'COMPLETED', 'CANCELLED')`,
+        [bookingId]
+      );
+
+      await client.query(
+        `UPDATE booking SET
+          redo_booking_id = $1,
+          redo_note = $2,
+        WHERE id = $1`,
+        [bookingId, item?.note]
+      );
+    }
+
     await client.query("COMMIT");
     console.log(`✅ Booking with legacy_id ${item.Id} updated successfully.`);
     return bookingId;
@@ -404,9 +422,6 @@ export async function updateBookingAddOn(item: any, mysqlConn: any, id?: any) {
 
     if (!bookingId || !addOnId) {
       await client.query("ROLLBACK");
-      console.warn(
-        `Missing booking or add-on reference for legacy ID: ${item.Id}`
-      );
       throw new Error(
         `Missing booking or add-on reference for legacy ID: ${item.Id}`
       );
@@ -1059,7 +1074,6 @@ export async function updateBookingServiceDetails(
 
     // Determine booking status
 
-    //comment to be opened
     const status = mapLegacyStatusToBookingStatus(bookingData.Status);
 
     await client.query(
@@ -1169,7 +1183,7 @@ export async function updateBookingServiceDetails(
       }
     }
 
-    if (bookingData?.CanceledAt) {
+    if (bookingData.CanceledAt) {
       const cancelTime =
         bookingData.CanceledAt === "0000-00-00 00:00:00"
           ? new Date("1970-01-01T00:00:00.000Z")
@@ -1280,6 +1294,25 @@ export async function updateBookingServiceDetails(
       if (dispatchRes.rows.length > 0) {
         dispatchId = dispatchRes.rows[0].id;
       } else {
+        const { rows: existingDispatchRows } = await client.query(
+          `SELECT id FROM dispatch WHERE booking_id = $1`,
+          [bookingId]
+        );
+
+        if (existingDispatchRows.length > 0) {
+          const existingDispatchId = existingDispatchRows[0].id;
+
+          // Delete associated dispatch_pro entries
+          await client.query(
+            `DELETE FROM dispatch_pro WHERE dispatch_id = $1`,
+            [existingDispatchId]
+          );
+
+          // Delete the dispatch itself
+          await client.query(`DELETE FROM dispatch WHERE id = $1`, [
+            existingDispatchId,
+          ]);
+        }
         const insertDispatchRes = await client.query(
           `INSERT INTO dispatch (company_id, booking_id, date, created_at, updated_at)
              VALUES ($1, $2, $3, $4, NOW())
