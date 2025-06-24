@@ -347,8 +347,8 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
         `UPDATE booking SET
           redo_booking_id = $1,
           redo_note = $2
-        WHERE id = $1`,
-        [bookingId, item?.note]
+        WHERE id = $3`,
+        [bookingId, item?.Note, bookingId]
       );
     }
 
