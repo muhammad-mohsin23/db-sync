@@ -369,9 +369,6 @@ export async function insertBookingAddOns(item: any, mysqlConn: any) {
 
     if (existing.rows.length > 0) {
       await client.query("ROLLBACK");
-      console.log(
-        `Booking add-on already exists for booking ${item.BookingId} and addon ${item.AddOnId}`
-      );
       throw new Error(
         `Booking add-on already exists for booking ${item.BookingId} and addon ${item.AddOnId}`
       );
@@ -422,24 +419,43 @@ export async function updateBookingAddOn(item: any, mysqlConn: any, id?: any) {
       [item.Id]
     );
 
-    if (existingRows.length === 0) {
-      await client.query("ROLLBACK");
-      console.warn(`No booking_addon found with legacy_id ${item.Id}`);
-      // return;
-      throw new Error(`No booking_addon found with legacy_id ${item.Id}`);
+    if (item.DeletedAt) {
+      if (existingRows.length > 0) {
+        await client.query(`DELETE FROM booking_addon WHERE legacy_id = $1`, [
+          item.Id,
+        ]);
+        await client.query("COMMIT");
+        console.log(`✅ Deleted booking_addon with legacy_id ${item.Id}`);
+      } else {
+        await client.query("ROLLBACK");
+        console.warn(
+          `⚠️ Tried to delete non-existing booking_addon with legacy_id ${item.Id}`
+        );
+      }
+      return;
     }
 
-    await client.query(
-      `UPDATE booking_addon
-       SET booking_id = $1,
-           addon_id = $2,
-       WHERE legacy_id = $3`,
-      [
-        bookingId,
-        addOnId,
-        item.Id,
-      ]
-    );
+    if (existingRows.length > 0) {
+      await client.query(
+        `UPDATE booking_addon
+         SET booking_id = $1,
+             addon_id = $2
+         WHERE legacy_id = $3`,
+        [bookingId, addOnId, item.Id]
+      );
+      console.log(`✅ Updated booking_addon (legacy_id: ${item.Id})`);
+    } else {
+      // Case 3: Record does not exist and not deleted => insert it
+      await client.query(
+        `INSERT INTO booking_addon (
+           booking_id,
+           addon_id,
+           legacy_id
+         ) VALUES ($1, $2, $3)`,
+        [bookingId, addOnId, item.Id]
+      );
+      console.log(`✅ Inserted new booking_addon (legacy_id: ${item.Id})`);
+    }
 
     await client.query("COMMIT");
     console.log(`Booking add-on (legacy_id: ${item.Id}) updated successfully.`);
