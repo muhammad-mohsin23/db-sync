@@ -326,7 +326,7 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
             end_time = $2,
             name=$3,
             updated_at = $4
-          WHERE id = $6`,
+          WHERE id = $5`,
           [startTime, endTime, name, new Date(), timeWindowId]
         );
 
@@ -380,9 +380,9 @@ export async function insertBookingAddOns(item: any, mysqlConn: any) {
 
     await client.query(
       `INSERT INTO booking_addon (
-          booking_id, addon_id, legacy_id, updated_at
-        ) VALUES ($1, $2, $3, $4)`,
-      [bookingId, addOnId, item.Id, new Date()]
+          booking_id, addon_id, legacy_id
+        ) VALUES ($1, $2, $3)`,
+      [bookingId, addOnId, item.Id]
     );
 
     await client.query("COMMIT");
@@ -433,14 +433,10 @@ export async function updateBookingAddOn(item: any, mysqlConn: any, id?: any) {
       `UPDATE booking_addon
        SET booking_id = $1,
            addon_id = $2,
-           updated_at = $3,
-           deleted_at = $4
-       WHERE legacy_id = $5`,
+       WHERE legacy_id = $3`,
       [
         bookingId,
         addOnId,
-        new Date(),
-        item.DeletedAt ? new Date(item.DeletedAt) : null,
         item.Id,
       ]
     );
@@ -1992,15 +1988,14 @@ async function getOrCreateAccount(item: any, client: any): Promise<number> {
   // 2. Create account details
   await client.query(
     `INSERT INTO account_details (
-      account_id, address, city, state, preferred_language,
+      account_id, address, city, state,
       created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    ) VALUES ($1, $2, $3, $4, $5, $6)`,
     [
       accountId,
       item.BillingAddress || null,
       item.City || null,
       item.State || null,
-      "ENGLISH", // Default language
       item.CreatedAt ? new Date(item.CreatedAt) : new Date(),
       new Date(),
     ]
