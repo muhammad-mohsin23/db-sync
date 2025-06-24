@@ -1921,7 +1921,7 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
         item.PaymentTokenId || null,
         unitId,
         item.Id,
-        item.CreatedAt ? new Date(item.CreatedAt) : new Date(),
+        item.bCreatedAt ? new Date(item.bCreatedAt) : new Date(),
         new Date(),
       ]
     );
@@ -1944,7 +1944,8 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
         newBookingId,
         "CLOCK_IN",
         item.bsdClockedIn,
-        client
+        client,
+        item.bCreatedAt ?? new Date()
       );
     }
 
@@ -1953,7 +1954,8 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
         newBookingId,
         "ON_THE_WAY",
         item.bsdOnTheWay,
-        client
+        client,
+        item.bCreatedAt ?? new Date()
       );
     }
 
@@ -1962,7 +1964,8 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
         newBookingId,
         "COMPLETED",
         item.bsdClockedOut,
-        client
+        client,
+        item.bCreatedAt ?? new Date()
       );
     }
 
@@ -1971,7 +1974,8 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
         newBookingId,
         "CANCELLED",
         item.bsdCanceledAt,
-        client
+        client,
+        item.bCreatedAt ?? new Date()
       );
     }
 
@@ -2246,11 +2250,11 @@ async function createTimeWindow(item: any, bookingId: number, client: any) {
   const startTime =
     item.Start == "0000-00-00 00:00:00" || !item.Start
       ? "1970-01-01 00:00:00.000"
-      : item.Start?.replace("+00:00", "");
+      : item.Start?.toString().replace("+00:00", "");
   const endTime =
     item.End === "0000-00-00 00:00:00" || !item.End
       ? "1970-01-01 00:00:00.000"
-      : item.End?.replace("+00:00", "");
+      : item.End?.toString().replace("+00:00", "");
 
   const result = await client.query(
     `INSERT INTO time_window (
@@ -2411,21 +2415,29 @@ async function insertBookingStatusHistory(
   bookingId: number,
   status: string,
   time: any,
-  client: any
+  client: any,
+  createdAt: any
 ) {
   if (!time || time === "0000-00-00 00:00:00") return;
 
-  await client.query(
-    `INSERT INTO status_history (
-      booking_id,
-      status,
-      time,
-      created_at
-    ) VALUES ($1, $2, $3, $3)
-    ON CONFLICT (booking_id, status)
-    DO UPDATE SET
-      time = EXCLUDED.time,
-      created_at = EXCLUDED.created_at`,
-    [bookingId, status, time]
+  // Check if record exists
+  const { rows } = await client.query(
+    `SELECT id FROM status_history WHERE booking_id = $1 AND status = $2`,
+    [bookingId, status]
   );
+
+  if (rows.length > 0) {
+    // Update existing
+    await client.query(
+      `UPDATE status_history SET time = $1, created_at = $2 WHERE booking_id = $3 AND status = $4`,
+      [time, createdAt, bookingId, status]
+    );
+  } else {
+    // Insert new
+    await client.query(
+      `INSERT INTO status_history (booking_id, status, time, created_at)
+       VALUES ($1, $2, $3, $4)`,
+      [bookingId, status, time, createdAt]
+    );
+  }
 }
