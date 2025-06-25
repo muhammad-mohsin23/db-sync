@@ -152,7 +152,6 @@ export function formatDateToSixDecimals(dateStr: any) {
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mi = String(d.getUTCMinutes()).padStart(2, "0");
   const ss = String(d.getUTCSeconds()).padStart(2, "0");
-  const ms = String(d.getUTCMilliseconds()).padStart(3, "0"); // pad to 6 digits
 
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}.${ms}`;
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
 }
