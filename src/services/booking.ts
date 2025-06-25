@@ -1,7 +1,9 @@
+import { format } from "path";
 import { mysqlConnection, pgPool } from "../database/database.service";
 import {
   classifyTimeRange,
   expandBookingRange,
+  formatDateToSixDecimals,
   getServiceLineUuid,
   getTotalDaysFromRecurrence,
   mapEventNameToBookingStatus,
@@ -312,14 +314,17 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
 
         const name = classifyTimeRange(item.Start, item.End);
 
-        const startTime =
-          item.Start == "0000-00-00 00:00:00" || !item.Start
-            ? "1970-01-01 00:00:00.000"
-            : item.Start?.replace("+00:00", "");
-        const endTime =
-          item.End === "0000-00-00 00:00:00" || !item.End
-            ? "1970-01-01 00:00:00.000"
-            : item.End?.replace("+00:00", "");
+        // const startTime =
+        //   item.Start == "0000-00-00 00:00:00" || !item.Start
+        //     ? "1970-01-01 00:00:00.000"
+        //     : item.Start?.replace("+00:00", "");
+        // const endTime =
+        //   item.End === "0000-00-00 00:00:00" || !item.End
+        //     ? "1970-01-01 00:00:00.000"
+        //     : item.End?.replace("+00:00", "");
+
+        const startTime = formatDateToSixDecimals(item.Start);
+        const endTime = formatDateToSixDecimals(item.Start);
         await client.query(
           `UPDATE time_window SET
             start_time = $1,
@@ -2247,14 +2252,17 @@ async function createTimeWindow(item: any, bookingId: number, client: any) {
     return existing.rows[0].id; // Return existing ID if needed
   }
 
-  const startTime =
-    item.Start == "0000-00-00 00:00:00" || !item.Start
-      ? "1970-01-01 00:00:00.000"
-      : item.Start?.toString().replace("+00:00", "");
-  const endTime =
-    item.End === "0000-00-00 00:00:00" || !item.End
-      ? "1970-01-01 00:00:00.000"
-      : item.End?.toString().replace("+00:00", "");
+  // const startTime =
+  //   item.Start == "0000-00-00 00:00:00" || !item.Start
+  //     ? "1970-01-01 00:00:00.000"
+  //     : item.Start?.toString().replace("+00:00", "");
+  // const endTime =
+  //   item.End === "0000-00-00 00:00:00" || !item.End
+  //     ? "1970-01-01 00:00:00.000"
+  //     : item.End?.toString().replace("+00:00", "");
+
+  const startTime = formatDateToSixDecimals(item.Start);
+  const endTime = formatDateToSixDecimals(item.Start);
 
   const result = await client.query(
     `INSERT INTO time_window (

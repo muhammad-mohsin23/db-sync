@@ -138,3 +138,21 @@ export function getServiceLineUuid(msTitle: string): string {
       return "1545497c-672c-4bc9-8187-f0c700853b8e";
   }
 }
+
+export function formatDateToSixDecimals(dateStr: any) {
+  if (!dateStr || dateStr === "0000-00-00 00:00:00") {
+    return "1970-01-01 00:00:00.000000";
+  }
+
+  const d = new Date(dateStr); // Assumes input is in UTC (e.g., from backend/API)
+
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  const ms = String(d.getUTCMilliseconds()).padStart(3, "0"); // pad to 6 digits
+
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}.${ms}`;
+}
