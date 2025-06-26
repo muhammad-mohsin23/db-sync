@@ -20,7 +20,7 @@ export async function insertCustomerToAccount(item: any, mysqlConn: any) {
     );
     const customerExists = existingRes.rows[0];
 
-    if (!customerExists) {
+    if (customerExists) {
       console.log(`Account already exists for customer ${item.CustomerId}`);
       await client.query("ROLLBACK");
       throw new Error("Account already exists for customer");
@@ -323,12 +323,12 @@ export async function insertCustomerEntry(item: any, mysqlConn: any) {
   }
 }
 
-export async function getAccountIdByLegacyId(legacyId: number) {
+export async function getCustomerAccountIdByLegacyId(legacyId: number) {
   const client = await pgPool.connect();
 
   try {
     const res = await client.query(
-      `SELECT id FROM account WHERE legacy_id = $1`,
+      `SELECT id FROM account WHERE legacy_id = $1 and account_type = 'RESIDENT'`,
       [legacyId]
     );
 

@@ -1,6 +1,6 @@
 import { AdminId } from "../constants/constant";
 import { pgPool } from "../database/database.service";
-import { getAccountIdByLegacyId } from "./customer";
+import { getCustomerAccountIdByLegacyId } from "./customer";
 
 export async function insertCoupon(couponData: any, mysqlConn: any) {
   const client = await pgPool.connect();
@@ -32,7 +32,7 @@ export async function insertCoupon(couponData: any, mysqlConn: any) {
     const couponId = result.rows[0].id;
 
     // Try to fetch customer account after inserting coupon
-    const customerAccountId = await getAccountIdByLegacyId(
+    const customerAccountId = await getCustomerAccountIdByLegacyId(
       couponData.CustomerId
     );
 
@@ -99,7 +99,7 @@ export async function insertCreditsToCoupon(couponData: any) {
     const couponId = result.rows[0].id;
 
     // Try to fetch customer account after inserting coupon
-    const customerAccountId = await getAccountIdByLegacyId(
+    const customerAccountId = await getCustomerAccountIdByLegacyId(
       couponData.CustomerId
     );
 
@@ -161,7 +161,7 @@ export async function updateCreditsToCoupon(couponData: any) {
     const couponId = exists.id;
 
     // Try to fetch customer account after inserting coupon
-    const customerAccountId = await getAccountIdByLegacyId(
+    const customerAccountId = await getCustomerAccountIdByLegacyId(
       couponData.CustomerId
     );
 

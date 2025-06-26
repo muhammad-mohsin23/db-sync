@@ -11,7 +11,7 @@ import {
   Recurrence,
 } from "../helpers/util.herlper";
 // import { logger } from "../logging/logging";
-import { getAccountIdByLegacyId } from "./customer";
+import { getCustomerAccountIdByLegacyId } from "./customer";
 import { getPropertyIdByLegacyId } from "./property";
 import { getServiceLineIdFromOptionId } from "./service-line";
 import { getUnitFromUnitResident } from "./unit";
@@ -218,7 +218,7 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
 
     const bookingId = existing.rows[0].id;
 
-    const accountId = await getAccountIdByLegacyId(item.CustomerId);
+    const accountId = await getCustomerAccountIdByLegacyId(item.CustomerId);
     if (!accountId) {
       await client.query("ROLLBACK");
       console.log(`Account with legacy_id ${item.CustomerId} not found.`);
@@ -271,10 +271,14 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
       throw new Error(`Service not found for legacy_id ${legacyServiceId}`);
       // return;
     }
+    console.log(`booking start date: ${item.Start}`);
 
     const serviceId = serviceResult.rows[0].id;
 
-    const bookingDate = item.Start ?? item.CreatedAt;
+    const bookingDate =
+      item.Start === "0000-00-00 00:00:00.000000" || !item.Start
+        ? "1970-01-01 00:00:00.000"
+        : item.Start;
 
     await client.query(
       `UPDATE booking SET
@@ -723,7 +727,7 @@ export async function insertBookingFeedback(feedbackData: any, mysqlConn: any) {
     await client.query("BEGIN");
 
     const bookingId = await getBookingIdByLegacyId(feedbackData.BookingId);
-    const accountId = await getAccountIdByLegacyId(feedbackData.CustomerId);
+    const accountId = await getCustomerAccountIdByLegacyId(feedbackData.CustomerId);
 
     if (!bookingId) {
       await client.query("ROLLBACK");
@@ -793,7 +797,7 @@ export async function updateBookingFeedback(
     await client.query("BEGIN");
 
     const bookingId = await getBookingIdByLegacyId(feedbackData.BookingId);
-    const accountId = await getAccountIdByLegacyId(feedbackData.CustomerId);
+    const accountId = await getCustomerAccountIdByLegacyId(feedbackData.CustomerId);
 
     if (!bookingId) {
       await client.query("ROLLBACK");

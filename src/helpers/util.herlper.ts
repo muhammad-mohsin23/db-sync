@@ -106,6 +106,10 @@ export function classifyTimeRange(
   const start = new Date(startTimeStr);
   const end = new Date(endTimeStr);
 
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return "Anytime";
+  }
+  
   const startHour = start.getHours();
   const endHour = end.getHours();
 

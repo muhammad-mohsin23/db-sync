@@ -1,6 +1,5 @@
 import { daysOfWeek } from "../constants/constant";
 import { pgPool } from "../database/database.service";
-import { getAccountIdByLegacyId } from "./customer";
 import { getRegionByLegacyId } from "./region";
 
 export async function getPropertyIdByLegacyId(legacyId: number) {
