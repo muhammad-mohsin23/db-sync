@@ -21,7 +21,6 @@ export async function insertCustomerToAccount(item: any, mysqlConn: any) {
     const customerExists = existingRes.rows[0];
 
     if (customerExists) {
-      console.log(`Account already exists for customer ${item.CustomerId}`);
       await client.query("ROLLBACK");
       throw new Error("Account already exists for customer");
     }
