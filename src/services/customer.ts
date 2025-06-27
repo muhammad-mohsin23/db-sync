@@ -328,7 +328,7 @@ export async function getCustomerAccountIdByLegacyId(legacyId: number) {
 
   try {
     const res = await client.query(
-      `SELECT id FROM account WHERE legacy_id = $1 and account_type = 'RESIDENT'`,
+      `SELECT id FROM account WHERE legacy_id = $1`,
       [legacyId]
     );
 
