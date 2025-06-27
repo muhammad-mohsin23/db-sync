@@ -727,7 +727,9 @@ export async function insertBookingFeedback(feedbackData: any, mysqlConn: any) {
     await client.query("BEGIN");
 
     const bookingId = await getBookingIdByLegacyId(feedbackData.BookingId);
-    const accountId = await getCustomerAccountIdByLegacyId(feedbackData.CustomerId);
+    const accountId = await getCustomerAccountIdByLegacyId(
+      feedbackData.CustomerId
+    );
 
     if (!bookingId) {
       await client.query("ROLLBACK");
@@ -797,7 +799,9 @@ export async function updateBookingFeedback(
     await client.query("BEGIN");
 
     const bookingId = await getBookingIdByLegacyId(feedbackData.BookingId);
-    const accountId = await getCustomerAccountIdByLegacyId(feedbackData.CustomerId);
+    const accountId = await getCustomerAccountIdByLegacyId(
+      feedbackData.CustomerId
+    );
 
     if (!bookingId) {
       await client.query("ROLLBACK");
@@ -1860,7 +1864,7 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
 
     if (existing.rows.length > 0) {
       await client.query("ROLLBACK");
-      throw new Error(`Booking with legacy_id ${item.Id} already exists.`);
+      return;
     }
 
     // 3. Get or create account
