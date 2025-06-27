@@ -7,7 +7,7 @@ export async function insertCustomerToAccount(item: any, mysqlConn: any) {
 
     let userName = null;
     const usernameCheck = await client.query(
-      `SELECT id FROM account WHERE username = $1 AND account_type = 'RESIDENT'`,
+      `SELECT id FROM account WHERE username = $1 AND account_type in ('RESIDENT', 'STR')`,
       [item.Email]
     );
     if (usernameCheck.rows.length > 0) {
@@ -15,14 +15,14 @@ export async function insertCustomerToAccount(item: any, mysqlConn: any) {
     }
 
     const existingRes = await client.query(
-      `SELECT id FROM account WHERE legacy_id = $1`,
-      [item.Id]
+      `SELECT id FROM account WHERE legacy_id = $1 AND account_type =$2`,
+      [item.Id, item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT"]
     );
     const customerExists = existingRes.rows[0];
 
     if (customerExists) {
       await client.query("ROLLBACK");
-      throw new Error("Account already exists for customer");
+      return;
     }
     // Insert into account
     const insertAccountRes = await client.query(
@@ -36,7 +36,7 @@ $7, $8, $9, $10, $11, $12) RETURNING id`,
         item.FirstName,
         item.LastName || null,
         item.Email,
-        `RN-${item.CustomerId}`,
+        item.AccountType === "RESIDENT" ? `RN-${item.CustomerId}` : null,
         userName ?? item.Email,
         item.MobilePhone,
         null,
@@ -100,8 +100,11 @@ export async function updateCustomerInAccount(
     await client.query("BEGIN");
     // Check if account exists by legacy_id and email
     const result = await client.query(
-      `SELECT id FROM account WHERE legacy_id = $1`,
-      [item.CustomerId]
+      `SELECT id FROM account WHERE legacy_id = $1 and account_type = $2`,
+      [
+        item.CustomerId,
+        item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT",
+      ]
     );
     console.log("Result:", result);
     if (result.rowCount === 0) {
@@ -118,20 +121,18 @@ export async function updateCustomerInAccount(
       `UPDATE account SET
 first_name = $1,
 last_name = $2,
-username = $3,
-phone = $4,
-zip_code = $5,
-status = $6,
-account_type = $7,
-updated_at = $8,
-deleted_at=$9
-WHERE id = $10`,
+phone = $3,
+zip_code = $4,
+status = $5,
+account_type = $6,
+updated_at = $7,
+deleted_at=$8
+WHERE id = $9`,
       [
         item.FirstName,
         item.LastName || null,
-        item.Email,
         item.MobilePhone,
-        item.spmZipCode,
+        item.ZipCode,
         "ACTIVE",
         item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT",
         new Date(),
