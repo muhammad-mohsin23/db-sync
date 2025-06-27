@@ -1732,20 +1732,15 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
   try {
     await client.query("BEGIN");
 
-    // 1. First, get the marketId from marketservices using the MarketServiceId
-    const [marketRows]: any = await mysqlConn.execute(
-      `SELECT MarketId FROM marketservices WHERE Id = ? LIMIT 1`,
-      [bookingData.MarketServiceId]
+    const existing = await client.query(
+      `SELECT id FROM booking WHERE legacy_id = $1`,
+      [bookingData.Id]
     );
 
-    if (!marketRows || marketRows.length === 0) {
+    if (existing.rows.length > 0) {
       await client.query("ROLLBACK");
-      throw new Error(
-        `Market not found for MarketServiceId: ${bookingData.MarketServiceId}`
-      );
+      return;
     }
-
-    const marketId = marketRows[0].MarketId;
 
     // 1. Fetch the specific booking from MySQL with all related data
     const [bookingRows]: any = await mysqlConn.execute(
@@ -1854,17 +1849,6 @@ export async function insertBooking(bookingData: any, mysqlConn: any) {
       status = "CANCELLED";
     } else if (item.bsdStatus === "Pending") {
       status = "ASSIGNED";
-    }
-
-    // 2. Check if booking already exists by legacy_id
-    const existing = await client.query(
-      `SELECT id FROM booking WHERE legacy_id = $1`,
-      [item.Id]
-    );
-
-    if (existing.rows.length > 0) {
-      await client.query("ROLLBACK");
-      return;
     }
 
     // 3. Get or create account
