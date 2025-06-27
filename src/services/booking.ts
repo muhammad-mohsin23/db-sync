@@ -760,9 +760,7 @@ export async function insertBookingFeedback(feedbackData: any, mysqlConn: any) {
 
     if (existing.rows.length > 0) {
       await client.query("ROLLBACK");
-      throw new Error(
-        `Feedback already exists for booking_id ${bookingId} and account_id ${accountId}.`
-      );
+      return;
     }
 
     await client.query(
