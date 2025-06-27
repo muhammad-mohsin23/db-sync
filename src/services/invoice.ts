@@ -12,7 +12,6 @@ export async function insertInvoice(invoiceData: any, mysqlConn: any) {
 
     if (!bookingId) {
       await client.query("ROLLBACK");
-      console.log(`Booking with legacy_id ${invoiceData.BookingId} not found.`);
       throw new Error(
         `Booking with legacy_id ${invoiceData.BookingId} not found.`
       );
@@ -69,7 +68,7 @@ export async function insertInvoice(invoiceData: any, mysqlConn: any) {
     console.log("✅ Invoice inserted successfully.");
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("❌ Error inserting invoice:", err);
+    throw new Error(`Error inserting invoice`);
   } finally {
     client.release();
   }
