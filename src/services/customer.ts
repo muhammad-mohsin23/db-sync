@@ -16,7 +16,7 @@ export async function insertCustomerToAccount(item: any, mysqlConn: any) {
 
     const existingRes = await client.query(
       `SELECT id FROM account WHERE legacy_id = $1 AND account_type =$2`,
-      [item.Id, item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT"]
+      [item.CustomerId, item.AccountType === "SHELL_ACCOUNT" ? 'STR' : 'RESIDENT']
     );
     const customerExists = existingRes.rows[0];
 
@@ -103,7 +103,7 @@ export async function updateCustomerInAccount(
       `SELECT id FROM account WHERE legacy_id = $1 and account_type = $2`,
       [
         item.CustomerId,
-        item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT",
+        item.AccountType === "SHELL_ACCOUNT" ? 'STR' : 'RESIDENT',
       ]
     );
     console.log("Result:", result);
