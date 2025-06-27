@@ -68,7 +68,7 @@ export async function insertInvoice(invoiceData: any, mysqlConn: any) {
     console.log("✅ Invoice inserted successfully.");
   } catch (err) {
     await client.query("ROLLBACK");
-    throw new Error(`Error inserting invoice`);
+    throw new Error(`Error inserting invoice with legacy_id ${invoiceData.Id}`);
   } finally {
     client.release();
   }
