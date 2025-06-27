@@ -349,7 +349,6 @@ export async function updateUnitResident(item: any, mysqlConn: any) {
     }
     const { id: customerAccountId, tenant_id: tenantId } =
       customerAccountRes.rows[0];
-    throw new Error(`❌ Testing Error`);
 
     // 3. Fetch tenant and tenant_group_id
     if (tenantId) {
@@ -430,7 +429,6 @@ export async function insertUnitResident(item: any, mysqlConn: any) {
       );
     }
     const customerAccount = customerAccountRes.rows[0];
-    throw new Error(`❌ Testing Error`);
 
     // 4. Check if tenant_group_unit exists for this unit
     const tguCheck = await client.query(
