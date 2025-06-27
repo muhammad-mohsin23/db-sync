@@ -24,6 +24,8 @@ export async function insertCustomerToAccount(item: any, mysqlConn: any) {
       await client.query("ROLLBACK");
       return;
     }
+    const accountType =
+      item.AccountType === "SHELL_ACCOUNT" ? "STR" : "RESIDENT";
     // Insert into account
     const insertAccountRes = await client.query(
       `INSERT INTO account (
@@ -36,7 +38,7 @@ $7, $8, $9, $10, $11, $12) RETURNING id`,
         item.FirstName,
         item.LastName || null,
         item.Email,
-        item.AccountType === "RESIDENT" ? `RN-${item.CustomerId}` : null,
+        accountType === "RESIDENT" ? `RN-${item.CustomerId}` : null,
         userName ?? item.Email,
         item.MobilePhone,
         null,
