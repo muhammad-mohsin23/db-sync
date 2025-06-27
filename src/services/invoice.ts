@@ -27,10 +27,7 @@ export async function insertInvoice(invoiceData: any, mysqlConn: any) {
     if (existing.rows.length > 0) {
       await client.query("ROLLBACK");
       console.log(`Invoice with legacy_id ${invoiceData.Id} already exists.`);
-      throw new Error(
-        `Invoice with legacy_id ${invoiceData.Id} already exists.`
-      );
-      // return;
+      return;
     }
 
     await client.query(
@@ -188,16 +185,16 @@ export async function updateInvoiceItem(
     // Check if the invoice item exists
     const existing = await client.query(
       `SELECT id FROM invoice_items WHERE legacy_id = $1 AND invoice_id = $2`,
-      [invoiceItem.invoiceLineItemId, invoiceId]
+      [invoiceItem.id, invoiceId]
     );
 
     if (existing.rows.length === 0) {
       await client.query("ROLLBACK");
       console.log(
-        `Invoice item with legacy_id ${invoiceItem.invoiceLineItemId} not found.`
+        `Invoice item with legacy_id ${invoiceItem.id} not found.`
       );
       throw new Error(
-        `Invoice item with legacy_id ${invoiceItem.invoiceLineItemId} not found.`
+        `Invoice item with legacy_id ${invoiceItem.id} not found.`
       );
       // return;
     }
