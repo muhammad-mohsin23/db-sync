@@ -328,7 +328,7 @@ export async function updateBooking(item: any, mysqlConn: any, id?: any) {
         //     : item.End?.replace("+00:00", "");
 
         const startTime = formatDateToSixDecimals(item.Start);
-        const endTime = formatDateToSixDecimals(item.Start);
+        const endTime = formatDateToSixDecimals(item.End);
         await client.query(
           `UPDATE time_window SET
             start_time = $1,
