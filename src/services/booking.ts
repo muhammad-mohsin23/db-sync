@@ -2252,7 +2252,7 @@ async function createTimeWindow(item: any, bookingId: number, client: any) {
   //     : item.End?.toString().replace("+00:00", "");
 
   const startTime = formatDateToSixDecimals(item.Start);
-  const endTime = formatDateToSixDecimals(item.Start);
+  const endTime = formatDateToSixDecimals(item.End);
 
   const result = await client.query(
     `INSERT INTO time_window (
