@@ -2025,7 +2025,7 @@ async function getOrCreateAccount(item: any, client: any): Promise<number> {
       item.FirstName,
       item.LastName || null,
       item.Email,
-      accountType !== "STR" ? `RN-${item.CustomerId}` : null,
+      accountType !== "STR" ? `CN-${item.CustomerId}` : null,
       username,
       item.MobilePhone,
       "ACTIVE",
