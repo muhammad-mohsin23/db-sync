@@ -7,12 +7,12 @@ export async function insertPropertyUnit(item: any, mysqlConn: any) {
 
     const existingUnit = await client.query(
       `SELECT id FROM unit WHERE legacy_id = $1`,
-      [item.unitID]
+      [item.Id]
     );
     if (existingUnit.rows.length > 0) {
       await client.query("ROLLBACK");
       throw new Error(
-        `Unit with legacy_id ${item.unitID} already exists. Skipping insert.`
+        `Unit with legacy_id ${item.Id} already exists. Skipping insert.`
       );
     }
 
@@ -50,20 +50,13 @@ export async function insertPropertyUnit(item: any, mysqlConn: any) {
            legacy_id,
            updated_at
          ) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        propertyId,
-        floorPlanId,
-        item.number,
-        item.building_number,
-        item.unitID,
-        item.UpdatedAt ?? new Date(),
-      ]
+      [propertyId, floorPlanId, item.Number, item.Building, item.Id, new Date()]
     );
 
     await client.query("COMMIT");
-  } catch (error) {
+  } catch (error: any) {
     await client.query("ROLLBACK");
-    console.error("❌ Error upserting unit:", error);
+    throw new Error(`❌ Error inserting unit ${error.message}`);
   } finally {
     client.release();
   }
